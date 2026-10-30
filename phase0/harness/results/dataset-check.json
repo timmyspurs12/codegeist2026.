@@ -1,0 +1,14 @@
+{
+  "dataset": {
+    "comments": 30,
+    "strictComments": 27,
+    "strictCommitments": 24,
+    "ambiguousComments": 3,
+    "verbatimLabelsOk": true
+  },
+  "resolver": {
+    "checked": 17,
+    "agreed": 17,
+    "disagreements": []
+  }
+}

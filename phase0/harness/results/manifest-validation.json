@@ -1,0 +1,14 @@
+{
+  "schemaPath": "/usr/local/lib/node_modules/@forge/cli/node_modules/@forge/manifest/out/schema/manifest-schema.json",
+  "schemaTitle": null,
+  "manifestPath": "/home/user/codegeist2026./phase0/validator-probe/manifest.yml",
+  "valid": true,
+  "errors": [],
+  "modulesDeclared": [
+    "jira:workflowValidator",
+    "llm",
+    "function",
+    "webtrigger"
+  ],
+  "summary": "manifest conforms to the @forge/manifest JSON Schema"
+}

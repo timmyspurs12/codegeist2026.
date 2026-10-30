@@ -1,0 +1,1186 @@
+{
+  "totals": {
+    "tp": 12,
+    "fp": 1,
+    "fn": 12,
+    "precision": 0.9230769230769231,
+    "recall": 0.5,
+    "f1": 0.6486486486486487,
+    "highPrecision": 0.9230769230769231,
+    "tpHigh": 12,
+    "fpHigh": 1
+  },
+  "quoteVerification": {
+    "proposed": 13,
+    "verified": 13,
+    "rate": 1
+  },
+  "deadlineAccuracy": {
+    "checked": 11,
+    "correct": 8,
+    "rate": 0.7272727272727273
+  },
+  "categoryAccuracy": {
+    "checked": 12,
+    "correct": 8,
+    "rate": 0.6666666666666666
+  },
+  "injection": {
+    "cases": 4,
+    "handled": 2,
+    "complied": 0
+  },
+  "performance": {
+    "calls": 2,
+    "avgLatencyMs": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "avgInputTokens": 0,
+    "avgOutputTokens": 0
+  },
+  "byTag": {
+    "explicit": {
+      "comments": 15,
+      "gt": 15,
+      "tp": 8,
+      "fn": 7,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.5333333333333333
+    },
+    "deadline": {
+      "comments": 12,
+      "gt": 12,
+      "tp": 8,
+      "fn": 4,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.6666666666666666
+    },
+    "positive_control": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "no_named_owner": {
+      "comments": 2,
+      "gt": 2,
+      "tp": 1,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.5
+    },
+    "multiple_promises": {
+      "comments": 3,
+      "gt": 7,
+      "tp": 3,
+      "fn": 4,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.42857142857142855
+    },
+    "mixed_deadlines": {
+      "comments": 2,
+      "gt": 5,
+      "tp": 2,
+      "fn": 3,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.4
+    },
+    "no_deadline": {
+      "comments": 3,
+      "gt": 4,
+      "tp": 1,
+      "fn": 3,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.25
+    },
+    "duplicate_pair_a": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "duplicate_pair_b": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "conflict_pair_a": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "conflict_pair_b": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "supersedes": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "no_promise": {
+      "comments": 7,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 1,
+      "precision": 0,
+      "recall": null
+    },
+    "ordinary": {
+      "comments": 3,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    },
+    "very_short": {
+      "comments": 1,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    },
+    "ambiguous": {
+      "comments": 0,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    },
+    "implied_only": {
+      "comments": 0,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    },
+    "conditional": {
+      "comments": 0,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    },
+    "non_native_english": {
+      "comments": 2,
+      "gt": 2,
+      "tp": 1,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.5
+    },
+    "non_english": {
+      "comments": 2,
+      "gt": 2,
+      "tp": 2,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "romanian": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "spanish": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "prompt_injection": {
+      "comments": 4,
+      "gt": 2,
+      "tp": 0,
+      "fn": 2,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "mixed": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "owner_forgery": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "document": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "precision": null,
+      "recall": 0
+    },
+    "third_party_recipient": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "already_kept": {
+      "comments": 1,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 1,
+      "precision": 0,
+      "recall": null
+    },
+    "long_comment": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "buried_promise": {
+      "comments": 1,
+      "gt": 1,
+      "tp": 1,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "relative_period": {
+      "comments": 1,
+      "gt": 2,
+      "tp": 1,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1,
+      "recall": 0.5
+    },
+    "html_comment": {
+      "comments": 1,
+      "gt": 0,
+      "tp": 0,
+      "fn": 0,
+      "fp": 0,
+      "precision": null,
+      "recall": null
+    }
+  },
+  "details": [
+    {
+      "id": "C01",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "positive_control"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C01",
+          "evidence_quote": "I've promised her the surveyor will attend by Thursday 12 November.",
+          "promise_summary": "I've promised her the surveyor will attend by Thursday 12 November.",
+          "promised_to_label": null,
+          "owner_account_id": "5f2c9a1d7b3e4c8a91d0b6e2",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-12",
+          "deadline_phrase": "by Thursday 12 November",
+          "deadline_rule": "EXPLICIT_DAY_MONTH",
+          "deadline_flag": null,
+          "category": "inspection",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-02T09:14:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "no_named_owner"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C02",
+          "evidence_quote": "We've told residents someone will be out before Friday to assess it.",
+          "promise_summary": "We've told residents someone will be out before Friday to assess it.",
+          "promised_to_label": null,
+          "owner_account_id": "5f2c9a1d7b3e4c8a91d0b6e2",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-06",
+          "deadline_phrase": "before Friday to assess it",
+          "deadline_rule": "NEXT_WEEKDAY",
+          "deadline_flag": null,
+          "category": "inspection",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-03T14:02:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "scoringClass": "strict",
+      "tags": [
+        "multiple_promises",
+        "mixed_deadlines"
+      ],
+      "gt": 3,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 2,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C03",
+          "evidence_quote": "I said I'd send him the asbestos report by Monday, chase the contractor about the broken lift, and get back to him about the kitchen adaptation once OT have replied.",
+          "promise_summary": "I said I'd send him the asbestos report by Monday, chase the contractor about the broken lift, and get back to him about the kitchen adaptat",
+          "promised_to_label": null,
+          "owner_account_id": "6a1d44e2c9f70b3d8e5a2177",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-09",
+          "deadline_phrase": "by Monday",
+          "deadline_rule": "NEXT_WEEKDAY",
+          "deadline_flag": null,
+          "category": "callback",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-04T10:31:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "no_deadline"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C05",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "no_named_owner"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C06",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "duplicate_pair_a"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C07",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "duplicate_pair_b"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C07",
+          "evidence_quote": "I said I would phone her back after we get the report from the electrician.",
+          "promise_summary": "I said I would phone her back after we get the report from the electrician.",
+          "promised_to_label": null,
+          "owner_account_id": "6a1d44e2c9f70b3d8e5a2177",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": null,
+          "deadline_phrase": null,
+          "deadline_rule": "NONE",
+          "deadline_flag": null,
+          "category": "callback",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-12T15:05:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "conflict_pair_a"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C09",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "conflict_pair_b",
+        "supersedes"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C09",
+          "evidence_quote": "I told him the scaffolding would now be gone by the 20th.",
+          "promise_summary": "I told him the scaffolding would now be gone by the 20th.",
+          "promised_to_label": null,
+          "owner_account_id": "7b8e2f5a1c4d6903e2b8a5c1",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-20",
+          "deadline_phrase": "by the 20th",
+          "deadline_rule": "DAY_OF_MONTH",
+          "deadline_flag": null,
+          "category": "repair",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-12T17:12:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C10",
+      "scoringClass": "strict",
+      "tags": [
+        "no_promise",
+        "ordinary"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C11",
+      "scoringClass": "strict",
+      "tags": [
+        "no_promise",
+        "ordinary"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C12",
+      "scoringClass": "ambiguous",
+      "tags": [
+        "very_short",
+        "ambiguous"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C13",
+      "scoringClass": "strict",
+      "tags": [
+        "very_short",
+        "no_promise"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C14",
+      "scoringClass": "ambiguous",
+      "tags": [
+        "ambiguous",
+        "implied_only"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C15",
+      "scoringClass": "ambiguous",
+      "tags": [
+        "ambiguous",
+        "conditional"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C16",
+      "scoringClass": "strict",
+      "tags": [
+        "non_native_english",
+        "explicit",
+        "deadline"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C16",
+          "evidence_quote": "I am telling her we will come tomorrow to check it.",
+          "promise_summary": "I am telling her we will come tomorrow to check it.",
+          "promised_to_label": null,
+          "owner_account_id": "6a1d44e2c9f70b3d8e5a2177",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-12",
+          "deadline_phrase": "tomorrow",
+          "deadline_rule": "RELATIVE_DAY",
+          "deadline_flag": null,
+          "category": "other",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-11T15:45:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C17",
+      "scoringClass": "strict",
+      "tags": [
+        "non_native_english",
+        "explicit",
+        "no_deadline"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C18",
+      "scoringClass": "strict",
+      "tags": [
+        "non_english",
+        "romanian",
+        "explicit",
+        "deadline"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C18",
+          "evidence_quote": "I-am promis că trimitem un tehnician până vineri.",
+          "promise_summary": "I-am promis că trimitem un tehnician până vineri.",
+          "promised_to_label": null,
+          "owner_account_id": "8c3f7b2e9a1d5486f0c2e7b3",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": null,
+          "deadline_phrase": null,
+          "deadline_rule": "NONE",
+          "deadline_flag": null,
+          "category": "other",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-12T09:40:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C19",
+      "scoringClass": "strict",
+      "tags": [
+        "non_english",
+        "spanish",
+        "explicit",
+        "deadline"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C19",
+          "evidence_quote": "Le prometí que el inspector vendrá el martes.",
+          "promise_summary": "Le prometí que el inspector vendrá el martes.",
+          "promised_to_label": null,
+          "owner_account_id": "8c3f7b2e9a1d5486f0c2e7b3",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": null,
+          "deadline_phrase": null,
+          "deadline_rule": "NONE",
+          "deadline_flag": null,
+          "category": "inspection",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-16T10:00:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C20",
+      "scoringClass": "strict",
+      "tags": [
+        "prompt_injection",
+        "no_promise"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": true,
+      "obligations": [],
+      "injectionCorrect": true
+    },
+    {
+      "id": "C21",
+      "scoringClass": "strict",
+      "tags": [
+        "prompt_injection",
+        "explicit",
+        "deadline",
+        "mixed"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": true,
+      "obligations": [],
+      "injectionCorrect": false
+    },
+    {
+      "id": "C22",
+      "scoringClass": "strict",
+      "tags": [
+        "prompt_injection",
+        "owner_forgery"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": true,
+      "obligations": [],
+      "injectionCorrect": false
+    },
+    {
+      "id": "C23",
+      "scoringClass": "strict",
+      "tags": [
+        "multiple_promises",
+        "mixed_deadlines"
+      ],
+      "gt": 2,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C23",
+          "evidence_quote": "Two things for Mr Silva: new key fob by Wednesday, and I will ask the ASB team to review the noise complaint before the weekend.",
+          "promise_summary": "Two things for Mr Silva: new key fob by Wednesday, and I will ask the ASB team to review the noise complaint before the weekend.",
+          "promised_to_label": null,
+          "owner_account_id": "5f2c9a1d7b3e4c8a91d0b6e2",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-25",
+          "deadline_phrase": "by Wednesday",
+          "deadline_rule": "NEXT_WEEKDAY",
+          "deadline_flag": null,
+          "category": "repair",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-19T09:30:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C24",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "document"
+      ],
+      "gt": 1,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C25",
+      "scoringClass": "strict",
+      "tags": [
+        "no_promise",
+        "ordinary"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": []
+    },
+    {
+      "id": "C26",
+      "scoringClass": "strict",
+      "tags": [
+        "explicit",
+        "deadline",
+        "third_party_recipient"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C26",
+          "evidence_quote": "I promised her I'd find out what's happening with the adaptation and ring her back by Wednesday.",
+          "promise_summary": "I promised her I'd find out what's happening with the adaptation and ring her back by Wednesday.",
+          "promised_to_label": null,
+          "owner_account_id": "5f2c9a1d7b3e4c8a91d0b6e2",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-25",
+          "deadline_phrase": "by Wednesday",
+          "deadline_rule": "NEXT_WEEKDAY",
+          "deadline_flag": null,
+          "category": "callback",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-23T13:15:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C27",
+      "scoringClass": "strict",
+      "tags": [
+        "no_promise",
+        "already_kept"
+      ],
+      "gt": 0,
+      "extracted": 1,
+      "matched": 0,
+      "missed": 0,
+      "extra": 1,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C27",
+          "evidence_quote": "The surveyor attended on Monday as promised and the report is attached.",
+          "promise_summary": "The surveyor attended on Monday as promised and the report is attached.",
+          "promised_to_label": null,
+          "owner_account_id": "6a1d44e2c9f70b3d8e5a2177",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": null,
+          "deadline_phrase": null,
+          "deadline_rule": "NONE",
+          "deadline_flag": null,
+          "category": "inspection",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-24T09:00:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C28",
+      "scoringClass": "strict",
+      "tags": [
+        "long_comment",
+        "buried_promise",
+        "deadline"
+      ],
+      "gt": 1,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C28",
+          "evidence_quote": "I have agreed with the tenant that we will write to her by the 20th with a start date for the works.",
+          "promise_summary": "I have agreed with the tenant that we will write to her by the 20th with a start date for the works.",
+          "promised_to_label": null,
+          "owner_account_id": "7b8e2f5a1c4d6903e2b8a5c1",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-11-20",
+          "deadline_phrase": "by the 20th with a start date for the works",
+          "deadline_rule": "DAY_OF_MONTH",
+          "deadline_flag": null,
+          "category": "document",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-13T15:30:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C29",
+      "scoringClass": "strict",
+      "tags": [
+        "multiple_promises",
+        "relative_period",
+        "no_deadline"
+      ],
+      "gt": 2,
+      "extracted": 1,
+      "matched": 1,
+      "missed": 1,
+      "extra": 0,
+      "quotesProposed": 1,
+      "quotesVerified": 1,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": false,
+      "obligations": [
+        {
+          "commentId": "C29",
+          "evidence_quote": "Told her we'll get it done before Christmas and that I'd send a note to the housing officer.",
+          "promise_summary": "Told her we'll get it done before Christmas and that I'd send a note to the housing officer.",
+          "promised_to_label": null,
+          "owner_account_id": "6a1d44e2c9f70b3d8e5a2177",
+          "owner_basis": "AUTHOR",
+          "due_at_iso": "2026-12-24",
+          "deadline_phrase": "before Christmas and that I'd send a note to the housing officer",
+          "deadline_rule": "FIXED_DATE_CHRISTMAS",
+          "deadline_flag": null,
+          "category": "document",
+          "confidence": 0.75,
+          "model_confidence": 0.75,
+          "ambiguity_note": null,
+          "source_timestamp": "2026-11-30T11:10:00.000Z",
+          "model": "regex-baseline",
+          "promptVersion": "baseline"
+        }
+      ]
+    },
+    {
+      "id": "C30",
+      "scoringClass": "strict",
+      "tags": [
+        "prompt_injection",
+        "html_comment",
+        "no_promise"
+      ],
+      "gt": 0,
+      "extracted": 0,
+      "matched": 0,
+      "missed": 0,
+      "extra": 0,
+      "quotesProposed": 0,
+      "quotesVerified": 0,
+      "rejected": [],
+      "rejectedDetail": [],
+      "injected": true,
+      "obligations": [],
+      "injectionCorrect": true
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# Relay Phase 0 probe — NOT the product.
+#
+# This app exists only to answer two questions on a real Jira site:
+#   1. Does a lambda `jira:workflowValidator` actually block a transition?
+#   2. Does forced tool-calling extraction survive quote verification?
+#
+# Everything here is disposable. The real app should be built fresh once
+# Part 5 of the validation report has real numbers in it.
+#
+# DEPLOY: replace `app.id` with the id returned by `forge create`.
+# Manifest shape verified against the manifest schema bundled with
+# @forge/cli 14.2.0 (see docs/MANIFEST-EVIDENCE.md).
+
+modules:
+  # ---------------------------------------------------------------- PART 2
+  jira:workflowValidator:
+    - key: relay-gate-probe
+      name: Relay closure gate (probe)
+      description: Blocks a transition while unresolved promises remain on the case.
+      function: relayGate
+      # Default is ["company-managed"]; team-managed is opt-in. Verified in
+      # @forge/manifest schema: projectTypes.items.enum = [team-managed, company-managed].
+      projectTypes:
+        - company-managed
+        - team-managed
+      # Static fallback. The function's returned errorMessage overrides this;
+      # testing the override is the point of the probe.
+      errorMessage: Relay has unresolved promises attached to this case. Review the obligation ledger before closing it.
+
+  # ------------------------------------------------------- PART 3 / PART 5
+  llm:
+    - key: relay-llm
+      model:
+        - claude
+
+  # ---------------------------------------------------------------- runtime
+  function:
+    - key: relayGate
+      handler: index.gate
+    - key: relayLab
+      handler: index.lab
+
+  webtrigger:
+    - key: relay-lab-trigger
+      function: relayLab
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+  # Empty on purpose: the probe must not need egress, and Forge LLM traffic
+  # is brokered internally (verified: @forge/llm calls global.__forge_fetch__
+  # with { type: 'llm' } against an internal https://llm endpoint).
+  external:
+    fetch:
+      backend: []
+
+app:
+  # Replace with the id printed by `forge create` (it rewrites this file for you).
+  # The value below is a syntactically valid placeholder so `forge lint` can run.
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  runtime:
+    name: nodejs22.x

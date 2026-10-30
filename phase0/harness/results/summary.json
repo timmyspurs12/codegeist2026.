@@ -1,0 +1,343 @@
+{
+  "generatedAt": "2026-10-30T19:15:52.266Z",
+  "environment": {
+    "node": "v22.22.3",
+    "forgeCli": "installed separately; see ENVIRONMENT.md"
+  },
+  "dataset": {
+    "comments": 30,
+    "strictComments": 27,
+    "strictCommitments": 24,
+    "ambiguousComments": 3,
+    "verbatimLabelsOk": true
+  },
+  "resolver": {
+    "checked": 17,
+    "agreed": 17,
+    "disagreements": []
+  },
+  "conformance": {
+    "total": 13,
+    "passed": 13
+  },
+  "baseline": {
+    "label": "deterministic regex baseline — validates the measurement instrument; NOT a model quality result",
+    "totals": {
+      "tp": 12,
+      "fp": 1,
+      "fn": 12,
+      "precision": 0.9230769230769231,
+      "recall": 0.5,
+      "f1": 0.6486486486486487,
+      "highPrecision": 0.9230769230769231,
+      "tpHigh": 12,
+      "fpHigh": 1
+    },
+    "quoteVerification": {
+      "proposed": 13,
+      "verified": 13,
+      "rate": 1
+    },
+    "deadlineAccuracy": {
+      "checked": 11,
+      "correct": 8,
+      "rate": 0.7272727272727273
+    },
+    "injection": {
+      "cases": 4,
+      "handled": 2,
+      "complied": 0
+    },
+    "byTag": {
+      "explicit": {
+        "comments": 15,
+        "gt": 15,
+        "tp": 8,
+        "fn": 7,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.5333333333333333
+      },
+      "deadline": {
+        "comments": 12,
+        "gt": 12,
+        "tp": 8,
+        "fn": 4,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.6666666666666666
+      },
+      "positive_control": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "no_named_owner": {
+        "comments": 2,
+        "gt": 2,
+        "tp": 1,
+        "fn": 1,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.5
+      },
+      "multiple_promises": {
+        "comments": 3,
+        "gt": 7,
+        "tp": 3,
+        "fn": 4,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.42857142857142855
+      },
+      "mixed_deadlines": {
+        "comments": 2,
+        "gt": 5,
+        "tp": 2,
+        "fn": 3,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.4
+      },
+      "no_deadline": {
+        "comments": 3,
+        "gt": 4,
+        "tp": 1,
+        "fn": 3,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.25
+      },
+      "duplicate_pair_a": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 0,
+        "fn": 1,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "duplicate_pair_b": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "conflict_pair_a": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 0,
+        "fn": 1,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "conflict_pair_b": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "supersedes": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "no_promise": {
+        "comments": 7,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 1,
+        "precision": 0,
+        "recall": null
+      },
+      "ordinary": {
+        "comments": 3,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      },
+      "very_short": {
+        "comments": 1,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      },
+      "ambiguous": {
+        "comments": 0,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      },
+      "implied_only": {
+        "comments": 0,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      },
+      "conditional": {
+        "comments": 0,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      },
+      "non_native_english": {
+        "comments": 2,
+        "gt": 2,
+        "tp": 1,
+        "fn": 1,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.5
+      },
+      "non_english": {
+        "comments": 2,
+        "gt": 2,
+        "tp": 2,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "romanian": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "spanish": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "prompt_injection": {
+        "comments": 4,
+        "gt": 2,
+        "tp": 0,
+        "fn": 2,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "mixed": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 0,
+        "fn": 1,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "owner_forgery": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 0,
+        "fn": 1,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "document": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 0,
+        "fn": 1,
+        "fp": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "third_party_recipient": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "already_kept": {
+        "comments": 1,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 1,
+        "precision": 0,
+        "recall": null
+      },
+      "long_comment": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "buried_promise": {
+        "comments": 1,
+        "gt": 1,
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "relative_period": {
+        "comments": 1,
+        "gt": 2,
+        "tp": 1,
+        "fn": 1,
+        "fp": 0,
+        "precision": 1,
+        "recall": 0.5
+      },
+      "html_comment": {
+        "comments": 1,
+        "gt": 0,
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "precision": null,
+        "recall": null
+      }
+    }
+  },
+  "failures": 0
+}
