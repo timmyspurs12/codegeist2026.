@@ -17,6 +17,8 @@ import { chat, list } from '@forge/llm';
 
 import { decideGate } from './gate.js';
 import { createGateHandler } from './gate-handler.js';
+import { deriveEnforcement } from './enforcement.js';
+import { RECOVERY_RUNBOOK, RUNBOOK_VERIFIED } from './uninstall-audit.js';
 import { EMIT_OBLIGATIONS_TOOL } from './extraction/schema.js';
 import { SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage, sanitiseCommentText } from './extraction/prompt.js';
 import { processModelOutput } from './extraction/pipeline.js';
@@ -45,12 +47,24 @@ const log = (obj) => console.log(JSON.stringify({ relay: true, ...obj, at: new D
  */
 export const gate = createGateHandler({
   getGateState: async (issueKey) => kvs.get(GATE_KEY(issueKey)),
-  getLabels: async (issueKey) => {
-    const res = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}?fields=labels`);
-    const body = await res.json();
-    return body?.fields?.labels ?? [];
+  // F5: no label fallback. Gate state comes from the entity store and nowhere
+  // else, so edit permission on an issue is not edit permission on enforcement.
+  // Flip the gate with the lab webtrigger instead: ?action=state&key=...&blocking=2
+  getLabels: undefined,
+  log: (event) => {
+    let enriched = event;
+    if (event && event.event === 'gate_decision') {
+      // Stamp closure provenance on every decision so the audit trail can never
+      // claim the gate ran when it could not.
+      const enforcement = deriveEnforcement({
+        decision: { result: event.result, audit: event.audit },
+        state: event.state,
+        nowMs: Date.now(),
+      });
+      enriched = { ...event, enforcement };
+    }
+    console.log(JSON.stringify({ relay: true, ...enriched, at: new Date().toISOString() }));
   },
-  log: (event) => console.log(JSON.stringify({ relay: true, ...event, at: new Date().toISOString() })),
 });
 
 // ─────────────────────────────────────── PART 3-5: the benchmark endpoint ──
@@ -75,6 +89,7 @@ export const lab = async (request) => {
       case 'state': return json(await setGateState(url));
       case 'run': return json(await runBatch(url));
       case 'report': return json(await report(url));
+      case 'runbook': return json({ ok: true, runbookVerified: RUNBOOK_VERIFIED, steps: RECOVERY_RUNBOOK });
       default: return json({ error: `unknown action: ${action}` }, 400);
     }
   } catch (err) {

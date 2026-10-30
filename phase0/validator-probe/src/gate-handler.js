@@ -1,13 +1,20 @@
 /**
  * The gate handler, with its I/O injected.
  *
- * index.js binds the real Forge dependencies (kvs, asApp().requestJira).
- * Tests bind fakes. This is the only way to exercise the fallback paths that a
- * live deploy would take years to hit: KVS down, REST down, both down, malformed
- * payload, missing issue key.
+ * index.js binds the real Forge dependencies (kvs, requestJira). Tests bind
+ * fakes. This is the only way to exercise the fallback paths that a live deploy
+ * would take years to hit: store down, store slow, malformed payload, missing
+ * issue key.
  *
- * The handler must never throw: an exception in a workflow validator is an
- * unexplained block on a real person's case.
+ * TWO RULES ENCODED HERE
+ * ----------------------
+ * 1. **No label fallback by default.** Reading gate state from a Jira label lets
+ *    anyone with edit permission remove the label and close the case — a bypass
+ *    disguised as a fallback. Labels are opt-in (`allowLabelFallback: true`) and
+ *    exist for the probe only. Production reads the entity store and nothing else.
+ *
+ * 2. **The handler never throws.** An exception inside a workflow validator is an
+ *    unexplained block on a real person's case, which is worse than no validator.
  */
 
 import { decideGate, stateFromLabels, BASE_BLOCK_MESSAGE } from './gate.js';
@@ -15,12 +22,20 @@ import { decideGate, stateFromLabels, BASE_BLOCK_MESSAGE } from './gate.js';
 /**
  * @param {{
  *   getGateState: (issueKey: string) => Promise<any|null>,
- *   getLabels: (issueKey: string) => Promise<string[]>,
+ *   getLabels?: (issueKey: string) => Promise<string[]>,
+ *   allowLabelFallback?: boolean,
+ *   policy?: 'fail-open'|'fail-closed',
  *   log?: (event: object) => void,
  * }} deps
  */
 export function createGateHandler(deps) {
-  const { getGateState, getLabels, log = () => {} } = deps;
+  const {
+    getGateState,
+    getLabels,
+    allowLabelFallback = false,
+    policy,
+    log = () => {},
+  } = deps;
 
   return async function gate(payload) {
     const issueKey = extractIssueKey(payload);
@@ -34,16 +49,22 @@ export function createGateHandler(deps) {
     }
 
     if (!state) {
-      try {
-        const labels = await getLabels(issueKey);
-        state = stateFromLabels(Array.isArray(labels) ? labels : []);
-      } catch (err) {
-        log({ event: 'gate_label_read_failed', issueKey, error: String(err) });
-        state = { stateAvailable: false };
+      if (allowLabelFallback && typeof getLabels === 'function') {
+        // Probe-only path. Logged loudly because it is a bypass.
+        log({ event: 'gate_label_fallback_used', issueKey, warning: 'LABEL_BYPASS_ACTIVE' });
+        try {
+          const labels = await getLabels(issueKey);
+          state = stateFromLabels(Array.isArray(labels) ? labels : [], { policy });
+        } catch (err) {
+          log({ event: 'gate_label_read_failed', issueKey, error: String(err) });
+          state = { stateAvailable: false, policy };
+        }
+      } else {
+        state = { stateAvailable: false, policy };
       }
     }
 
-    const decision = decideGate(state);
+    const decision = decideGate({ ...(state ?? {}), policy: (state && state.policy) ?? policy });
     log({ event: 'gate_decision', issueKey, result: decision.result, audit: decision.audit, state });
 
     return decision.result
@@ -53,9 +74,12 @@ export function createGateHandler(deps) {
 }
 
 /**
- * The validator payload shape is documented as providing the issue; older and
- * newer payload shapes have differed. Accept every plausible form and never
- * throw on an unexpected one.
+ * The validator payload shape, verified against the module documentation:
+ *
+ *   { issue: { key }, configuration: {}, transition: { from, to, modifiedFields } }
+ *
+ * Older and newer payloads have differed, so accept every plausible form and
+ * never throw on an unexpected one.
  *
  * @param {any} payload
  * @returns {string}

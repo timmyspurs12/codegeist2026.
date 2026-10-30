@@ -7,9 +7,13 @@ It exists to answer two questions before any product code is written:
 1. Can a Forge workflow validator actually block a Jira transition? (`validator-probe/`)
 2. Can a model extract commitments with verifiable provenance? (`dataset/`, `harness/`)
 
-Read `VALIDATION-REPORT.md` first. It states plainly which checks passed, which
-are untested, and which are blocked — and there are more of the last two than of
-the first.
+Read `PHASE-0.2-REPORT.md` first (latest), then `VALIDATION-REPORT.md`. Both state
+plainly which checks passed, which are untested, and which are blocked — and there
+are more of the last two than of the first.
+
+**Live status: BLOCKED.** No authenticated Forge session and no Atlassian site
+exist in this environment, so no live behaviour has been observed. `docs/UNBLOCK.md`
+lists the exact user actions required; `report.json` is the machine-readable record.
 
 ## Status at a glance
 
@@ -18,6 +22,9 @@ the first.
 | Validator module exists in the platform schema | **verified** (machine-checked, two schema versions) |
 | Validator logic, failure paths, return contract | **tested** (48 unit/integration tests) |
 | Validator actually blocks a live transition | **untested** — no Atlassian site available |
+| Closure provenance (4 states), fail-open policy, staleness | **tested** (14 tests) |
+| Pre-uninstall audit logic + recovery runbook | **tested** (7 tests); transport not written; runbook unverified |
+| Removable-label bypass | **closed in code**, tested |
 | Extraction pipeline (quote guard, owner grounding, date recomputation, injection) | **tested** (13/13 conformance) |
 | Model extraction quality on 30 comments | **blocked** — Forge LLM is unreachable outside the Forge runtime |
 

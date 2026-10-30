@@ -51,18 +51,29 @@ it. If you copied the manifest instead, paste the printed id in by hand.
 
 ### Test matrix
 
+State is set through the lab webtrigger, **not** through Jira labels. The label
+fallback was removed in Phase 0.2 (fix F5) because anyone with edit permission
+could remove the label and close the case. Set state first, then attempt the
+transition:
+
+```bash
+BASE="<webtrigger-url>"
+curl -s "$BASE?action=state&key=HOU-1&blocking=2&unowned=1&overdue=1"
+```
+
 | # | Setup | Action | Expected | Result |
 | --- | --- | --- | --- | --- |
-| T1 | Issue with no labels | Transition to Done | Blocked. Message: *"Relay has unresolved promises attached to this case. Review the obligation ledger before closing it."* | |
-| T2 | Add label `relay-block-2` | Transition to Done | Blocked. Message gains *"(2 unresolved)"* | |
-| T3 | Labels `relay-block-2 relay-unowned-1 relay-overdue-1` | Transition | Blocked. Message gains *"(2 unresolved: 1 with no owner, 1 overdue)"* | |
-| T4 | Remove all labels | Transition to Done | Succeeds | |
+| T1 | No state record for the issue (fresh install) | Transition to Done | **Succeeds.** Absent state is treated as "unavailable", which is fail-open by default | |
+| T2 | `?action=state&key=HOU-1&blocking=2` | Transition to Done | **Blocked.** Message: *"Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved)"* | |
+| T3 | `?action=state&key=HOU-1&blocking=2&unowned=1&overdue=1` | Transition | **Blocked.** Message gains *"(2 unresolved: 1 with no owner, 1 overdue)"* | |
+| T4 | `?action=state&key=HOU-1&blocking=0` | Transition to Done | **Succeeds** | |
 | T5 | Same as T2, from the **board** | Drag card to Done | Blocked identically | |
-| T6 | Same as T2, from the **issue view** | Click transition | Blocked identically | |
-| T7 | Same as T2 via REST | `POST /rest/api/3/issue/{key}/transitions` with the Done id | HTTP 400, error message present | |
-| T8 | Same as T2 in a **team-managed** project | Transition | Blocked (verify `projectTypes` works) | |
-| T9 | Add a **post function** (e.g. set a field) after the validator | Attempt T2 | Post function **does not run** — proves it blocks, not just warns | |
-| T10 | `forge uninstall`, then transition a `relay-block` issue | Transition | Record what actually happens. Expected: the transition is **blocked** because a missing validator evaluates false | |
+| T6 | Same as T2, from the **issue view** | Click transition | Blocked identically; message renders on the issue view | |
+| T7 | Same as T2 via REST | `POST /rest/api/3/issue/{key}/transitions` with the Done id | **HTTP 400**, `errorMessages` contains the Relay message | |
+| T8 | Same as T2 in a **team-managed** project | Transition | Blocked (verifies `projectTypes` includes team-managed) | |
+| T9 | Add a **post function** (e.g. set a field) after the validator | Attempt T2 | Post function **does not run**; the field stays unset. This is the row that separates enforcement from a warning | |
+| T10 | `forge uninstall`, then transition any issue | Transition | Record exactly what happens, including whether the transition is missing from the UI or refused | |
+| T10b | After T10, as a **project admin** | Try to open the workflow editor and remove the orphaned validator | Record whether the editor still lists it and whether publishing restores transitions. This is the recovery path | |
 
 T9 is the one that distinguishes real enforcement from a cosmetic warning.
 T10 is the one that will bite a customer, so record it precisely.

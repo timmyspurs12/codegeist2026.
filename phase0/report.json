@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "0.2.0",
+  "product": "Relay",
+  "phase": "0.2 — live Atlassian validation",
+  "generatedAt": "2026-10-30T19:23:23.016Z",
+  "generatedBy": "phase0/harness/build-report.mjs",
+  "evidencePolicy": "A row is PASS only if behaviour was observed on a live Jira site. Local tests, schemas and documentation are recorded separately and never promote a row.",
+  "environment": {
+    "forgeCli": "14.2.0",
+    "node": "v22.22.3",
+    "authenticated": false,
+    "atlassianSite": null,
+    "deployAttempted": true,
+    "deployResult": "Error: Not logged in.",
+    "networkToAtlassian": "unreachable from this sandbox (curl: connection failed to id/api/developer.atlassian.com)"
+  },
+  "offlineEvidence": {
+    "description": "Executed in this environment. Real runs, but not live Jira behaviour.",
+    "unitAndIntegrationTests": {
+      "total": 71,
+      "passing": 71,
+      "byFile": {
+        "gate": 11,
+        "handler": 10,
+        "extraction": 29,
+        "enforcement": 14,
+        "uninstall": 7
+      }
+    },
+    "conformance": {
+      "total": 13,
+      "passed": 13,
+      "failures": 0
+    },
+    "dataset": {
+      "comments": 30,
+      "strictComments": 27,
+      "strictCommitments": 24,
+      "ambiguousComments": 3,
+      "verbatimLabelsOk": true
+    },
+    "deadlineResolver": {
+      "checked": 17,
+      "agreed": 17,
+      "disagreements": []
+    },
+    "manifestValidation": {
+      "valid": true,
+      "schema": "/usr/local/lib/node_modules/@forge/cli/node_modules/@forge/manifest/out/schema/manifest-schema.json"
+    },
+    "baseline": {
+      "disclaimer": "Deterministic regex baseline. Validates the measurement instrument. NOT a model result.",
+      "precision": 0.9230769230769231,
+      "recall": 0.5,
+      "f1": 0.6486486486486487,
+      "highConfidencePrecision": 0.9230769230769231,
+      "quoteVerification": {
+        "proposed": 13,
+        "verified": 13,
+        "rate": 1
+      },
+      "deadlineAccuracy": {
+        "checked": 11,
+        "correct": 8,
+        "rate": 0.7272727272727273
+      },
+      "injection": {
+        "cases": 4,
+        "handled": 2,
+        "complied": 0
+      }
+    }
+  },
+  "live": {
+    "status": "BLOCKED",
+    "reason": "Forge CLI is not authenticated and no Atlassian development site exists. deploy fails with \"Not logged in\". Atlassian hosts are unreachable from this sandbox.",
+    "validatorMatrix": [
+      {
+        "id": "T1",
+        "setup": "Fresh install, no gate state",
+        "expected": "Transition to Done proceeds (state absent → fail-open)",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T2",
+        "setup": "gate state blocking=2",
+        "expected": "Transition blocked with the Relay message",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T3",
+        "setup": "gate state blocking=2, unowned=1, overdue=1",
+        "expected": "Message includes dynamic counts",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T4",
+        "setup": "gate state blocking=0",
+        "expected": "Transition proceeds",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T5",
+        "setup": "Board path",
+        "expected": "Blocked identically",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T6",
+        "setup": "Issue view path",
+        "expected": "Blocked identically, message rendered on the issue view",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T7",
+        "setup": "REST transition path",
+        "expected": "HTTP 400 with the Relay message in errorMessages",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T8",
+        "setup": "Team-managed project",
+        "expected": "Blocked, proving projectTypes includes team-managed",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T9",
+        "setup": "Post function after the validator",
+        "expected": "Post function does NOT execute — proves a block, not a warning",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T10",
+        "setup": "App uninstalled, then transition",
+        "expected": "Record observed behaviour (expected: blocked)",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      },
+      {
+        "id": "T10b",
+        "setup": "Recovery: admin removes the orphaned rule and publishes",
+        "expected": "Record whether transitions are restored",
+        "status": "NOT TESTED",
+        "observed": null,
+        "evidence": null,
+        "reason": "No authenticated Atlassian site available in this environment."
+      }
+    ],
+    "llmBenchmark": {
+      "status": "UNSCORED",
+      "reason": "@forge/llm posts to an internal https://llm endpoint through the runtime-provided __forge_fetch__. It has no public HTTP surface, so the 30-comment benchmark cannot run outside a deployed Forge app. No substitute model or external endpoint was used.",
+      "metrics": {
+        "strictPrecision": null,
+        "recall": null,
+        "highConfidencePrecision": null,
+        "quoteVerificationRate": null,
+        "falsePositives": null,
+        "falseNegatives": null,
+        "byLanguage": null,
+        "latencyMs": null,
+        "tokens": null
+      }
+    }
+  },
+  "fixes": {
+    "F1": {
+      "title": "Run T1–T10 on a live site",
+      "status": "BLOCKED",
+      "detail": "Requires an authenticated site. Matrix emitted as NOT TESTED."
+    },
+    "F2": {
+      "title": "Run the live extraction benchmark",
+      "status": "BLOCKED",
+      "detail": "Requires a deployed Forge app."
+    },
+    "F3": {
+      "title": "Four closure states on every closure",
+      "status": "IMPLEMENTED + UNIT TESTED",
+      "detail": "src/enforcement.js; 14 tests; not exercised live."
+    },
+    "F4": {
+      "title": "Pre-uninstall audit as a P0 feature",
+      "status": "PARTIAL — logic tested, transport missing, runbook unverified",
+      "detail": "src/uninstall-audit.js: pure audit + runbook, 7 tests. Workflow-enumeration REST transport deliberately not written because the endpoint could not be verified."
+    },
+    "F5": {
+      "title": "Close the removable-label bypass",
+      "status": "IMPLEMENTED + TESTED",
+      "detail": "Label fallback removed from the default path; opt-in only, logged as LABEL_BYPASS_ACTIVE; UNBLOCK matrix now drives state through the webtrigger."
+    },
+    "F6": {
+      "title": "Second human annotator on ground truth",
+      "status": "NOT DONE",
+      "detail": "Requires a person. Dataset remains single-annotator."
+    },
+    "F7": {
+      "title": "Model date is never persisted",
+      "status": "IMPLEMENTED + TESTED",
+      "detail": "Deterministic resolver overrides the model; covered by conformance cases 6–7 and unit tests."
+    }
+  },
+  "decision": {
+    "verdict": "PROCEED AFTER FIXES — UNCHANGED FROM PHASE 0",
+    "basis": "No live evidence exists either way. F1 and F2 remain blocked, so neither PROCEED nor PIVOT is supportable.",
+    "pivotCriterion": "precision < 60% after two iterations — not met and not evaluated, because no precision was measured."
+  }
+}
