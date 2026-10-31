@@ -1,9 +1,10 @@
 # Relay — T12 validation report
 
-**Test:** T12 — *Can `jira:workflowValidator` be enabled and used on a fresh Atlassian development site?*
-**Date:** 31 October 2026 · **Captured:** 14:18–14:22 UTC
-**Branch:** `arena/06fd2e30-codegeist2026` at `b8a5fad` (V2.1 review)
-**Phase 0/0.2 artefacts:** unchanged. 71/71 tests still pass.
+**Test:** T12 — Preview-feature enablement. *Can `jira:workflowValidator` be enabled and used on a fresh Atlassian development site?*
+**Specified by:** `RELAY-REVIEW-V2.1.md` §7 and §10.1 · `RELAY-V2.1-LIVE-BLOCKERS.md` Tier 1
+**Branch:** `arena/06fd2e30-codegeist2026` · **Base commit:** `dd7966d` (V2.1 at `b8a5fad`, plus the first T12 evidence capture)
+**Executed:** 31 October 2026, 14:18–14:24 UTC
+**This report is the only file changed by this task.**
 
 ---
 
@@ -11,211 +12,255 @@
 
 # BLOCKED
 
-**BLOCKED is not PASS.** No live Atlassian site exists and no Atlassian host is reachable from this environment, so **not one line of T12 has been executed against the platform.** Nothing below is a live observation.
+**Not PASS. Not FAIL.** T12 was attempted and could not reach the platform. The documented process was never run, so there is nothing to pass or fail.
 
-| Question T12 exists to answer | Answer |
-| --- | --- |
-| Is the validator usable on a fresh site without enabling anything? | **BLOCKED** — untested |
-| Is it gated behind a Preview opt-in? | **Documentation says "opt-in: required" in general, and documents no procedure for this module** — so unknown in practice |
-| Does a fresh site show it in the workflow editor? | **BLOCKED** — untested |
-| Can the probe deploy and install? | **BLOCKED** — `forge deploy` fails at authentication, before the manifest is read |
+| The question you asked | Answer | Class |
+| --- | --- | --- |
+| Was T12 actually attempted? | **Yes** — every check that does not require an Atlassian account or network path was executed, and the two that do were attempted and refused | — |
+| Is `jira:workflowValidator` available to this environment? | **No development environment exists.** No site, no session, no reachable host | **BLOCKED** |
+| Is it a Preview feature requiring enablement? | **Preview: yes.** The general policy says opt-in is required; the module's own documentation documents **no** enablement step | **DOCUMENTATION VERIFIED** |
+| Was Preview enabled? | **No.** There is no site on which to enable anything | **BLOCKED** |
+| Is the validator available for E1? | **No.** E1 cannot start until T12 runs on your machine | **BLOCKED** |
+| Can the probe deploy and install? | **No** — `forge deploy` refuses at authentication | **BLOCKED** |
 
 ---
 
-## 1. Environment and site status
+## 1. Repository state and task provenance
 
-Captured verbatim in [`t12/environment.txt`](t12/environment.txt) and [`t12/connectivity.txt`](t12/connectivity.txt).
+Checked before doing anything, because the concern in your instruction was that the wrong task specification had been picked up.
+
+```
+$ git branch --show-current
+arena/06fd2e30-codegeist2026
+
+$ git log --oneline -3
+dd7966d T12 (live validation step 1): BLOCKED — no site, no login, no network path
+b8a5fad Add review v2.1: specification consistency and architecture corrections
+6b484a0 Fix stale score in review v2 §0; add consistency checker
+
+$ git status --short
+(clean)
+```
+
+**T12 does not exist in Phase 0 or Phase 0.2.** Verified by searching both reports, `report.json` and the Phase 0 test matrix:
+
+```
+$ grep -n "T12" phase0/VALIDATION-REPORT.md phase0/PHASE-0.2-REPORT.md phase0/report.json phase0/docs/UNBLOCK.md
+(no matches)
+
+$ grep -rn "Preview" phase0/VALIDATION-REPORT.md phase0/PHASE-0.2-REPORT.md
+(no matches)
+```
+
+Phase 0.2's live matrix is T1–T10b: fresh install, blocking, counts, board/view/REST, team-managed, post-function suppression, uninstall and recovery. It contains no Preview or enablement test, and it says `NOT TESTED` for every row. T12 and T12 alone appears in `RELAY-REVIEW-V2.1.md` (§7, §10.1, §10.4) and `RELAY-V2.1-LIVE-BLOCKERS.md` (Tier 1).
+
+**Therefore this report cannot be a Phase 0.2 reproduction, and §12 states exactly which Phase 0.2 material was used, and for what.**
+
+Files read for this task: `RELAY-REVIEW-V2.1.md`, `RELAY-V2.1-LIVE-BLOCKERS.md`, `phase0/VALIDATION-REPORT.md`, `phase0/PHASE-0.2-REPORT.md`, `phase0/report.json`, `phase0/validator-probe/manifest.yml`, `phase0/validator-probe/package.json`, `phase0/validator-probe/src/index.js`.
+
+---
+
+## 2. V2.1's T12 acceptance criteria, verbatim
+
+> **New experiment, T12 — run it first.** On a *freshly created* site with default settings, does the Relay validator appear in a company-managed workflow editor, and does it block? This is the judge's exact situation and nobody has tested it. If T12 fails, the entire enforcement story is unavailable to most judges and the plan stops before P1.
+> — V2.1 §7
+
+> | **T12** | On a **fresh, default-configured** site, does the Relay validator appear in a company-managed workflow and block a transition? (Preview opt-in) | Everything. If this fails, 3 of 11 P0 features are unavailable to a judge | 20 min |
+> — V2.1 §10.1
+
+> | **T12** | **Fresh site, default settings.** Create a **company-managed** project. Add the Relay validator to a transition. Publish | The validator appears in the rule picker and blocks a transition | Whether it appeared at all; whether anything had to be enabled first; the exact menu path |
+> — `RELAY-V2.1-LIVE-BLOCKERS.md`, Tier 1
+
+**One scope note, and it matters for how this report is judged.** V2.1 bundles two different observations into T12: *does it appear* (enablement and registration) and *does it block* (enforcement). Your instruction separates them, with blocking belonging to E1. This report adopts your split:
+
+| | Question | Owner |
+| --- | --- | --- |
+| **T12** | Is the module usable at all on a default site — does anything have to be enabled, does it register, does it appear in the picker? | this report |
+| **E1** | Does an attached rule actually block the three entry paths, and are post functions suppressed? | not started |
+
+That split is cleaner than V2.1's phrasing and does not weaken it: T12 can pass while E1 fails, and that combination is exactly the "appears but does not enforce" risk worth knowing about.
+
+**Decision rule applied** (yours, from the task): *PASS* = enablement demonstrated on the development site and the validator available for the next live test. *FAIL* = cannot be enabled, or unavailable, under the documented supported process. *BLOCKED* = required authentication, site or permissions unavailable.
+
+---
+
+## 3. Official documentation consulted
+
+Quotations and page dates in full in `phase0/t12/documentation.txt`. Pages fetched through the page-fetch tool, which is not subject to the sandbox's egress block — note that a successful documentation lookup is not a live test.
+
+| # | Page | Used for |
+| --- | --- | --- |
+| 1 | [Jira workflow validator (Preview)](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-validator/) — last updated 12 Mar 2025, four chunks, all read | Preview status, project types, lambda payload, scopes, uninstall behaviour, **absence of any enablement procedure** |
+| 2 | [Forge release phases: EAP, Preview, GA](https://developer.atlassian.com/platform/forge/whats-coming/) — last updated 28 Aug 2026 | What Preview means; opt-in requirement; deprecation windows |
+| 3 | [Runs on Atlassian](https://developer.atlassian.com/platform/forge/runs-on-atlassian/) and [Shared responsibility model](https://developer.atlassian.com/platform/forge/shared-responsibility-model/) | Not used for T12; cited in V2.1 §5 |
+| 4 | `@forge/manifest` 13.8.0 (bundled with CLI 14.2.0), read locally | `required` list, `projectTypes` default and enum |
+
+---
+
+## 4. The exact enablement procedure
+
+This is the substantive answer T12 can give without a site, and it is not the answer V2.1 expected.
+
+### 4.1 What the policy says — DOCUMENTATION VERIFIED
+
+> "Forge preview features are available to all users, and enjoy the same level of support as GA features. However, preview features are **usually turned off by default** (although they can be enabled on production environments); **for instructions on enabling them, refer to their documentation**."
+
+The comparison table on the same page marks Preview as **Opt-in: Required**.
+
+### 4.2 What the module's documentation says — nothing
+
+> "The `jira:workflowValidator` module defines a validator that can be added to workflow transitions in company-managed projects."
+
+That is the entirety of its installation guidance. No toggle, no site setting, no feature flag, no admin screen, no "enable preview features" step appears anywhere in the page's four chunks. The page tells you to declare the module, attach the rule, and publish the workflow — and nothing else.
+
+### 4.3 The documented procedure, in full
+
+1. Declare `jira:workflowValidator` in the manifest (lambda `function` form, or `expression` form).
+2. `forge deploy` → `forge install --site <site> --product jira`.
+3. In a **company-managed** project: workflow editor → target transition → **Validators** → add `Relay closure gate (probe)` → **publish the workflow**.
+
+### 4.4 The two possibilities this leaves, and why I will not resolve it by guessing
+
+| | Meaning | If true |
+| --- | --- | --- |
+| **A** | Nothing needs enabling. "Opt-in" means opting in by declaring the module; the platform gates it automatically. | T12 passes by following the three steps. V2.1 §7's opt-in risk is overstated. |
+| **B** | An undocumented site- or account-level Preview gate exists. | A judge's fresh site may not have it. Three of eleven P0 features (F7, F8, F11) are then unavailable in a demo. |
+
+Only a live run distinguishes A from B. What can be stated now, more precisely than V2.1 did: **no documented step is being missed, because there is no documented step to miss.** If the validator fails to appear on a fresh site, the cause will be something undocumented — which is precisely the finding T12 exists to produce.
+
+### 4.5 What "enabled" would look like, observably
+
+So that the live run has a definition rather than an impression: the rule appears in the transition's validator picker under the name `Relay closure gate (probe)`, can be added and saved, and survives **publishing** the workflow. Anything less — appearing but not saving, or saving but not appearing in the published workflow — is a FAIL with a specific failure mode, not a pass.
+
+---
+
+## 5. Forge CLI registration safeguard
+
+Your instruction: do not blindly run `forge create`. Inspection first.
+
+### 5.1 The three possible states
+
+| State | Meaning | Correct action |
+| --- | --- | --- |
+| **Unregistered** | No `app.id` anywhere; the app has never been registered to a developer account | `forge create` is the correct and only supported initial-registration step |
+| **Registered, id in the manifest** | `manifest.yml` carries a real `ari:cloud:ecosystem::app/<uuid>` | Do **not** run `forge create` — it would register a second app |
+| **Registered, id missing from this checkout** | An app exists in the Developer Console but this manifest still holds the placeholder | Do **not** run `forge create`. Copy the existing app id into `manifest.yml` |
+
+### 5.2 What inspection established
+
+| Check | Result | Class |
+| --- | --- | --- |
+| `app.id` in the working manifest | `ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000` — the all-zero placeholder | **LIVE VERIFIED** (inspection) |
+| Has a real app id ever been committed? | **No.** One commit has ever touched this manifest (`b080654`), and the only `id:` line in its history is the placeholder | **LIVE VERIFIED** |
+| `.forge/` metadata directory present? | No — neither in `phase0/validator-probe/` nor the repo root | **LIVE VERIFIED** (inspection) |
+| Credential store `~/.forge` | Absent | **LIVE VERIFIED** |
+
+**Conclusion: as checked in, the probe is unregistered.** No registration has ever been recorded in this repository, by anyone.
+
+### 5.3 What inspection cannot establish, and the safeguard that follows
+
+Whether **an app named `relay-phase0-probe` already exists in your Developer Console**. That state lives in your Atlassian account, not in the repository, and there is no way for me to see it. If you have run `forge create` for this probe in an earlier session, the account now holds an app even though the committed manifest does not.
+
+**Before running `forge create`, check the Developer Console** (`https://developer.atlassian.com/console/myapps/`) for an app named `relay-phase0-probe`:
+
+- **Not listed** → the probe is genuinely unregistered; `forge create` is correct.
+- **Listed** → do not create. Open the app, copy its `ari:cloud:ecosystem::app/<uuid>`, and replace line 61 of `manifest.yml` with it. That is a one-line change and it is the whole fix.
+
+I ran **no** `forge create`, `forge login`, `forge deploy`, `forge install` or `forge lint`. In this environment they would all have failed at authentication; more importantly, `forge create` is the one command that must run exactly once, on your machine, against your own account, and running it speculatively here could have produced a duplicate registration attached to nothing.
+
+---
+
+## 6. Environment and site status
+
+Re-verified at **14:23:09 UTC**, not carried over from an earlier session. Full captures: `phase0/t12/environment.txt`, `phase0/t12/connectivity.txt`.
 
 | Item | State | Evidence |
 | --- | --- | --- |
 | Node / npm | v22.22.3 · 10.9.8 | `node -v`, `npm -v` |
-| Forge CLI | **14.2.0**, installed locally for this session at `/tmp/forge-cli` (not on the global PATH; installs do not persist between sessions) | `forge --version` |
+| Forge CLI | **14.2.0**, installed locally at `/tmp/forge-cli` for this session (not on the global PATH; CLI installs do not persist between sessions) | `forge --version` |
 | Forge authentication | **Not logged in** | `forge whoami` → `Error: Not logged in.` (exit 1) |
-| Credential store | **absent** | `ls ~/.forge` → no such directory |
-| Atlassian environment variables | **none** (names checked, values never printed) | `env \| cut -d= -f1` |
-| Development site | **none configured anywhere** in the environment or the repository | no site URL in config or env; the only `*.atlassian.net` strings in the repo are citation links (`railsware.atlassian.net`) and documentation placeholders |
-| Jira / JSM availability | **cannot be determined** — needs a site | — |
-| Network to Atlassian | **unreachable** | see below |
-| Probe manifest | **conforms** to `@forge/manifest` 13.8.0 schema | `harness/validate-manifest.mjs` |
-| Probe tests | **71 / 71 pass** | `node --test` |
-
-### Why no live step was possible
+| Credential store | **Absent** | `ls ~/.forge` → no such directory |
+| Atlassian environment variables | **None** (names checked; values never printed) | `env \| cut -d= -f1` |
+| Development site | **None.** No site URL in config or environment; the only `*.atlassian.net` strings in the repo are citation links (`railsware.atlassian.net`) and documentation placeholders | repo-wide search |
+| Jira / JSM availability | **Cannot be determined** — requires a site | — |
+| Network to Atlassian | **Unreachable** | below |
 
 ```
-https://id.atlassian.com        HTTP 000   0.05s   curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL
-https://api.atlassian.com       HTTP 000   0.05s
-https://developer.atlassian.com HTTP 000   0.05s
-https://admin.atlassian.com     HTTP 000   0.06s
-https://registry.npmjs.org      HTTP 200   0.05s   <- allowlisted, works
+$ curl -sS -m 8 -o /dev/null -w "HTTP %{http_code}\n" https://id.atlassian.com
+HTTP 000        curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL
+
+$ curl -sS -m 8 -o /dev/null -w "HTTP %{http_code}\n" https://registry.npmjs.org
+HTTP 200
 ```
 
-Atlassian hostnames resolve — `id`, `api`, `developer` and a `*.atlassian.net` name all to `13.227.180.4`, which looks like an egress proxy; `admin.atlassian.com` to `18.65.238.47` — but the TLS handshake is refused on all four by the sandbox's egress policy. The npm registry, which is on the allowlist, returns 200 from the same shell.
+`id`, `api`, `developer` and `*.atlassian.net` all resolve to `13.227.180.4` (an egress-proxy address); `admin.atlassian.com` resolves to `18.65.238.47`. All four refuse the TLS handshake. The npm registry, which is on the allowlist, returns 200 from the same shell.
 
-This is a **network policy**, not an Atlassian outage and not a credential problem that a token would fix. The `forge deploy` failure is authentication *because* there is no session; even with a token, no Atlassian endpoint could be reached from here.
-
-### One repository note, disclosed
-
-On starting, the local branch pointer had again drifted to `81369db` (`Initial commit`) while origin was at `b8a5fad`. The working tree was byte-identical to `origin/b8a5fad` — verified by a full tar backup, `git reset --hard origin/arena/06fd2e30-codegeist2026`, and a recursive diff that reported **zero differences**. No file was lost or altered. This is the third occurrence of the same drift; it is a sandbox artefact, not a repository problem.
+**This is a sandbox network policy, not an Atlassian outage and not a credential problem that a token would solve.** Even with your token and your site, this environment could not reach them. The live run has to happen where a browser and the CLI can both reach Atlassian.
 
 ---
 
-## 2. Official documentation consulted
+## 7. Commands actually executed, and their results
 
-Full quotations in [`t12/documentation.txt`](t12/documentation.txt). All pages fetched through the page-fetch tool, which is not subject to the sandbox egress block; quotations are verbatim.
-
-| # | Page | Used for |
-| --- | --- | --- |
-| 1 | [Jira workflow validator (Preview)](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-validator/) — all four chunks, last updated 12 Mar 2025 | Module status, project types, payload, scopes, uninstall statement, enablement (absent) |
-| 2 | [Forge release phases: EAP, Preview, GA](https://developer.atlassian.com/platform/forge/whats-coming/) — last updated 28 Aug 2026 | What "Preview" means, opt-in requirement, deprecation windows |
-| 3 | `@forge/manifest` 13.8.0 (bundled with CLI 14.2.0), read locally | `required` list, `projectTypes` default and enum |
-
----
-
-## 3. The Preview enablement question
-
-This is the part of T12 that documentation *can* settle, and it settles it in an awkward way.
-
-**What the policy says** — verified:
-
-> "Forge preview features are available to all users, and enjoy the same level of support as GA features. However, preview features are **usually turned off by default** (although they can be enabled on production environments); **for instructions on enabling them, refer to their documentation**."
-> — release-phases page
-
-The same page's comparison table marks Preview as **Opt-in: Required**.
-
-**What the module's documentation says about enabling it** — nothing:
-
-> "The `jira:workflowValidator` module defines a validator that can be added to workflow transitions in company-managed projects."
-
-That is the whole of the installation guidance. The page is four chunks long; all four were read. There is no toggle, no site setting, no feature flag, no admin page, no "enable preview features" step — anywhere.
-
-**So the documented supported process is, in full:**
-
-1. Declare `jira:workflowValidator` in the manifest (function form or expression form).
-2. `forge deploy` and `forge install` on the site.
-3. In a **company-managed** project, open the workflow editor, edit the target transition, add the rule, and **publish the workflow**.
-
-**Which leaves two possibilities, and T12 exists to distinguish them:**
-
-| | Meaning | Consequence if true |
-| --- | --- | --- |
-| **A** | Nothing needs enabling. "Opt-in" means "you opted in by declaring the module". The platform gates it automatically. | T12 passes by simply doing the three steps; the risk V2.1 §7 raised is overstated |
-| **B** | Some site-level or account-level Preview enablement exists but is undocumented — an internal flag, an allow-list, or a per-site toggle reachable only through an admin screen | The judge's fresh site may not have it. This is the scenario that makes three of eleven P0 features unavailable in a demo |
-
-**I cannot distinguish A from B without a site, and I will not guess.** What can be said with confidence is narrower and more useful than V2.1 said: *there is no documented step that anyone is failing to perform.* If the validator does not appear on a fresh site, the cause will be something undocumented, and that is exactly the finding T12 is for.
-
----
-
-## 4. Commands executed, and their actual results
-
-Every command below was run in this session. Nothing is reconstructed.
+Every command below ran in this session. Nothing is reconstructed or paraphrased.
 
 | Command | Result |
 | --- | --- |
-| `npm i @forge/cli@14.2.0 --ignore-scripts` (into `/tmp/forge-cli`) | Installed; exit 0 |
+| `git branch --show-current` / `git log` / `git status` | `arena/06fd2e30-codegeist2026`, `dd7966d`, clean tree |
+| `grep -n "T12" phase0/VALIDATION-REPORT.md phase0/PHASE-0.2-REPORT.md phase0/report.json phase0/docs/UNBLOCK.md` | no matches — T12 is not a Phase 0/0.2 test |
+| `npm i @forge/cli@14.2.0 --ignore-scripts` (into `/tmp/forge-cli`) | Installed, exit 0 |
 | `forge --version` | `14.2.0` |
 | `forge whoami` | `Error: Not logged in. If a local keychain is available, run forge login, otherwise set environment variables before trying again.` — exit 1 |
-| `forge settings set usage-analytics false` | `✔ Successfully set usage-analytics as false.` (needed only because the analytics prompt cannot render without a TTY) |
-| `forge settings list` | `usage-analytics: false`, `default-environment: Not set` |
-| `forge deploy` (in `phase0/validator-probe`) | `Error: Not logged in.` — **fails at authentication, before the manifest is parsed** |
+| `forge settings set usage-analytics false` | `✔ Successfully set usage-analytics as false.` (required only because the analytics prompt cannot render without a TTY) |
+| `forge deploy` (in `phase0/validator-probe`) | `Error: Not logged in.` — no manifest, build or upload output was produced |
+| `ls -la ~/.forge` | no such file or directory |
+| `curl` × 5 hosts | four Atlassian hosts HTTP 000; npm 200 |
+| `grep -n "id: ari" manifest.yml` | placeholder, line 61 |
+| `git log --all -p -- phase0/validator-probe/manifest.yml \| grep "id: ari"` | only the placeholder, ever |
+| `ls -la .forge` (probe and repo root) | absent |
 | `node harness/validate-manifest.mjs …` | `manifest conforms to the @forge/manifest JSON Schema` / `modules: jira:workflowValidator, llm, function, webtrigger` |
 | `node --test validator-probe/test/*.test.js` | `# tests 71 / # pass 71 / # fail 0` |
-| `curl` × 5 hosts | see §1 — four Atlassian hosts return HTTP 000, npm returns 200 |
 
-**What these results do not prove.** A conforming manifest is not a deployable app: it has never been through `forge lint` (which validates scopes against a live account and needs a login), never been bundled, never been deployed, and never been installed. The `deploy` failure happens before any of that. Every statement about deployment readiness here is structural, not behavioural.
-
-**Not run, deliberately:** `forge login`, `forge create`, `forge deploy`, `forge install`, `forge lint`, any REST call. Each requires either credentials this environment does not have or a site that does not exist. `forge create` was specifically avoided — it would have failed anyway, and it is the one command that must run on *your* machine so the real `app.id` is written once.
+**Not executed, deliberately:** `forge login`, `forge create`, `forge deploy` beyond the authentication failure, `forge install`, `forge lint`, and every Jira REST call.
 
 ---
 
-## 5. Logs
+## 8. Observations and errors
 
-Captured, not transcribed:
-
-| File | Contents |
-| --- | --- |
-| [`t12/environment.txt`](t12/environment.txt) | Toolchain, auth state, credential store, `forge whoami`/`deploy` output, env var names |
-| [`t12/connectivity.txt`](t12/connectivity.txt) | DNS, five HTTPS probes with timings, raw TLS error |
-| [`t12/probe-readiness.txt`](t12/probe-readiness.txt) | Schema conformance, module list, placeholder `app.id`, dependency check, test counts |
-| [`t12/documentation.txt`](t12/documentation.txt) | Verbatim extracts from all sources, with URLs and page dates |
-
-No screenshots exist, because no Atlassian UI was reachable.
-
----
-
-## 6. Is the validator enabled?
-
-**No — and the question does not yet have a meaning here.** There is no site, so there is no project, no workflow, no transition, and no place the module could be enabled.
-
-Strictly: **NOT TESTED.** It would be wrong to record this as "not enabled", which implies an attempt was made on a site and the module was absent.
-
----
-
-## 7. Could the probe be deployed and installed?
-
-**No. BLOCKED at authentication**, before deployment. What *is* established about readiness:
-
-| Check | Result | Class |
-| --- | --- | --- |
-| Manifest conforms to `@forge/manifest` 13.8.0 | Pass | **LIVE VERIFIED** would be wrong — this is **offline, executed**: it is a real test that ran, but it tests the schema, not the platform |
-| Declares `jira:workflowValidator`, `llm`, `function`, `webtrigger` | Yes | same |
-| Handler references (`index.gate`, `index.lab`) resolve to exports | Yes — `export const gate`, `export const lab` | offline |
-| `@forge/api`, `@forge/kvs`, `@forge/llm` declared and every external import matches | Yes | offline |
-| `node_modules` present for bundling | **No** — `npm install` needed before deploy | inspection |
-| `app.id` | **Still the placeholder** `ari:cloud:ecosystem::app/00000000-…` — `forge create` must run first | inspection |
-| Scopes accepted by the account's registry (`forge lint`) | Untested — needs login | **BLOCKED** |
-| Deploy / install / rule attaches / transition blocked | Untested — needs site | **BLOCKED** |
-
-Two probe corrections would help on a live run, and **neither has been made** — I am not touching the probe without your say-so:
-
-1. **`npm install` before deploying** (or `forge deploy` will bundle without its dependencies). No file changes; a package-manager command.
-2. **Nothing else.** The manifest is deliberately unchanged: it declares both project types because it reproduces Atlassian's documented example, and V2.1 §6 C10 already recorded that decision.
-
----
-
-## 8. Remaining blockers
-
-| # | Blocker | Whose | Clears |
-| --- | --- | --- | --- |
-| B1 | No Atlassian account credentials in this environment | yours | nothing on its own |
-| B2 | No Atlassian development site | yours | B1, plus 5 minutes |
-| B3 | **No network path from this sandbox to any Atlassian host** | not yours — environment policy | nothing you can do here; the live run must happen on your machine |
-| B4 | `app.id` placeholder | `forge create`, on your machine | deployment |
-| B5 | `node_modules` absent | `npm install` | deployment |
-
-B3 is the one that decides this report's verdict, and it is structural: even with your token and site, **this environment could not reach them.** The live run cannot be delegated to me. It has to happen where the browser and the CLI can both reach Atlassian.
+1. **`forge deploy` fails on authentication, before anything about the app is examined.** The output contains no manifest validation, no bundle step, no upload — only `Error: Not logged in.` A conforming manifest is therefore *not* evidence that the app deploys, and this report does not claim it is.
+2. **The CLI's analytics prompt blocks non-TTY use.** `forge whoami` with analytics unset fails with `Error: Prompts can not be meaningfully rendered in non-TTY environments` rather than reporting auth state. `forge settings set usage-analytics false` resolves it. Anyone scripting Forge in CI will hit this; it is worth knowing and is unrelated to Relay.
+3. **CLI 15.0.0 is available but requires a newer Node.** The CLI itself warns: `Run npm install -g @forge/cli@latest to update from version 14.2.0 to 15.0.0`. This environment runs Node 22.22.3, below 15.x's floor. 14.2.0 is the correct pin here and remains sufficient.
+4. **The probe's manifest is structurally sound but operationally unready in two ways, both expected:** `app.id` is a placeholder (needs registration — §5) and `node_modules` is absent (needs `npm install` before deploy). Neither is a defect; both are steps.
+5. **No preview-enablement mechanism was found in the documentation, which is itself the finding.** It is recorded as DOCUMENTATION VERIFIED *by absence*, over a page read in full — not as "we could not be bothered to look".
 
 ---
 
 ## 9. Evidence classification
 
-The five labels you specified, applied to every conclusion in this report.
-
 | # | Conclusion | Class | Basis |
 | --- | --- | --- | --- |
-| E1 | No Atlassian site is configured | **LIVE VERIFIED** (of this environment) | `ls ~/.forge`, env scan, no site URL anywhere |
-| E2 | The Forge CLI is unauthenticated | **LIVE VERIFIED** | `forge whoami` → `Not logged in`, exit 1 |
-| E3 | `forge deploy` fails at authentication, not at the manifest | **LIVE VERIFIED** | `forge deploy` output |
-| E4 | Atlassian hosts are unreachable from this sandbox | **LIVE VERIFIED** | curl HTTP 000 + TLS error, against a 200 control |
-| E5 | The probe manifest conforms to the 13.8.0 schema | **LIVE VERIFIED** as an offline execution — it *ran*, and it is not a platform test | `validate-manifest.mjs` |
-| E6 | 71/71 probe tests pass | **LIVE VERIFIED** as an offline execution | `node --test` |
-| E7 | `app.id` is a placeholder | **LIVE VERIFIED** (inspection) | `manifest.yml:61` |
-| E8 | `jira:workflowValidator` is a Preview feature | **DOCUMENTATION VERIFIED** | module page title and body |
-| E9 | Preview features are opt-in; deprecation window is 1 month | **DOCUMENTATION VERIFIED** | release-phases page |
-| E10 | No enablement procedure is documented for this module | **DOCUMENTATION VERIFIED** (by exhaustive absence, four chunks) | module page |
-| E11 | The module is documented for **company-managed** projects | **DOCUMENTATION VERIFIED** | "can be added to workflow transitions in company-managed projects" |
-| E12 | `projectTypes` defaults to `["company-managed"]` | **DOCUMENTATION VERIFIED** + package schema | property description + `@forge/manifest` |
-| E13 | The module page's own example contradicts E11 and E12 | **DOCUMENTATION VERIFIED** (as a contradiction) | `projectTypes: ['company-managed','team-managed']` in the Custom UI example |
-| E14 | An uninstalled app's validator evaluates to false | **DOCUMENTATION VERIFIED for expression validators** | "It will evaluate to false in all other cases, including … the app … is uninstalled" — in the *Jira expressions* section |
-| E15 | The same holds for **lambda** validators after uninstall | **INFERRED** | the sentence does not name the lambda path |
-| E16 | Declaring the module + deploying + attaching the rule is the complete supported process | **INFERRED** from E10 | if there were a step, it would be documented |
-| E17 | Nothing needs enabling (possibility A in §3) | **NOT TESTED** | requires a site |
-| E18 | An undocumented site-level gate exists (possibility B) | **NOT TESTED** | requires a site |
-| E19 | The validator appears in a fresh site's workflow editor | **NOT TESTED** | requires a site |
-| E20 | The probe deploys and installs | **BLOCKED** | B3 |
-| E21 | The scopes are accepted | **BLOCKED** | needs login |
-| E22 | The validator blocks a transition | **BLOCKED** — and this is E1's job, not T12's | needs a site |
+| E1 | Branch and commit are `arena/06fd2e30-codegeist2026` @ `dd7966d`, tree clean | **LIVE VERIFIED** | `git` |
+| E2 | T12 exists only in V2.1, not in Phase 0/0.2 | **LIVE VERIFIED** | grep of all four Phase 0/0.2 artefacts |
+| E3 | No development site is configured | **LIVE VERIFIED** | no site URL, no `~/.forge`, no env vars |
+| E4 | The Forge CLI is unauthenticated | **LIVE VERIFIED** | `forge whoami`, exit 1 |
+| E5 | `forge deploy` fails at authentication | **LIVE VERIFIED** | `forge deploy` output |
+| E6 | Atlassian hosts are unreachable from this sandbox | **LIVE VERIFIED** | HTTP 000 + TLS error, with npm HTTP 200 as control |
+| E7 | The probe, as committed, is unregistered | **LIVE VERIFIED** | placeholder id; no real id ever in git history; no `.forge/` |
+| E8 | The manifest conforms to the 13.8.0 schema | **LIVE VERIFIED** as an *offline* execution — it ran, and it tests the schema, not the platform | `validate-manifest.mjs` |
+| E9 | 71/71 probe tests pass | **LIVE VERIFIED** as an offline execution | `node --test` |
+| E10 | `jira:workflowValidator` is a Preview feature | **DOCUMENTATION VERIFIED** | page title and body |
+| E11 | Preview features are opt-in; deprecation window is one month | **DOCUMENTATION VERIFIED** | release-phases page |
+| E12 | No enablement procedure is documented for this module | **DOCUMENTATION VERIFIED by exhaustive absence** — four chunks of the module page read in full | module page |
+| E13 | The module is documented for **company-managed** projects | **DOCUMENTATION VERIFIED** | "can be added to workflow transitions in company-managed projects" |
+| E14 | `projectTypes` defaults to `["company-managed"]` | **DOCUMENTATION VERIFIED** + package schema | property description + `@forge/manifest` |
+| E15 | The module page's own example contradicts E13 and E14 by declaring both types | **DOCUMENTATION VERIFIED** (as a contradiction) | Custom UI example |
+| E16 | Declaring the module + deploying + attaching the rule is the complete supported procedure | **INFERRED** from E12 | if a step existed it would be documented |
+| E17 | Whether a site-level Preview gate exists in practice | **NOT TESTED** | requires a site |
+| E18 | Whether the validator appears in a fresh site's picker | **NOT TESTED** | requires a site |
+| E19 | Whether the probe deploys, installs and attaches | **BLOCKED** | E3, E4, E6 |
+| E20 | Whether the account's registry accepts the declared scopes (`forge lint`) | **BLOCKED** | needs login |
+| E21 | Whether an attached rule blocks a transition | **BLOCKED — and it is E1's question, not T12's** | needs a site |
 
-Note the separation being enforced: E19 is *T12's* question; E22 is *E1's*. T12 can pass with E22 still unknown, and E1 can pass while T12's answer remains split between A and B.
+The separation is deliberate and enforced: **E18 is T12's question; E21 is E1's.** T12 can pass with E21 unknown.
 
 ---
 
@@ -223,80 +268,102 @@ Note the separation being enforced: E19 is *T12's* question; E22 is *E1's*. T12 
 
 | Rule | Applies? |
 | --- | --- |
-| **PASS** — Preview enablement demonstrated on the development site, validator available for the next live test | **No.** Nothing was demonstrated live |
-| **FAIL** — the feature cannot be enabled or is unavailable under the documented process | **No.** A FAIL requires attempting the documented process and observing a refusal. No attempt was possible |
-| **BLOCKED** — required Atlassian authentication, site or permissions are unavailable | **Yes.** Authentication absent (E2), site absent (E1), network path absent (E4) |
+| **PASS** — Preview enablement demonstrated on the development site, validator available for the next live test | **No.** Nothing was demonstrated on a site |
+| **FAIL** — cannot be enabled, or unavailable, under the documented process | **No.** A FAIL requires running the documented process and observing a refusal. No attempt was possible |
+| **BLOCKED** — required authentication, site or permissions unavailable | **Yes.** No session (E4), no site (E3), no network path (E6) |
 
-**T12: BLOCKED.** It is not a pass, it is not a failure, and it is not evidence for or against Relay. It is the same standing block as Phase 0 and 0.2, now measured rather than described.
+**T12: BLOCKED.**
+
+It is not a pass, it is not a failure, and it is not evidence for or against Relay. It is the same standing block as Phase 0 and 0.2, now measured rather than described — and, per §4, measured more precisely than before: the documentation turns out not to describe an enablement step at all.
 
 ---
 
-## 11. What you need to do — exact steps
+## 11. Exact next action
 
-All of this happens **on your machine**, where a browser and the CLI can both reach Atlassian. Roughly 20 minutes to a T12 answer.
+On **your** machine, where a browser and the CLI can both reach Atlassian. About 20 minutes to a T12 answer.
+
+**Before anything else — the registration check (§5.3):**
+
+1. Open `https://developer.atlassian.com/console/myapps/`.
+2. If an app named `relay-phase0-probe` is listed → copy its app id into line 61 of `phase0/validator-probe/manifest.yml` and **skip step 6 below**.
+3. If it is not listed → the probe is genuinely unregistered and step 6 is correct.
 
 **Setup**
 
-1. **Browser** — sign in or create an account at `https://id.atlassian.com`.
-2. **Browser** — create an API token at `https://id.atlassian.com/manage-profile/security/api-tokens`. Label it `forge-cli`. It is shown once.
-3. **Browser** — create a free site at `https://www.atlassian.com/software/jira/free`. Choose **Jira Software** and add **Jira Service Management**. Note the site URL.
-4. **Terminal** — `node -v`. If ≥ 22.23.4: `npm i -g @forge/cli@latest`. Otherwise: `npm i -g @forge/cli@14.2.0` (15.x requires a newer Node than some setups have).
-5. **Terminal** — `forge login`, then your email and the token from step 2.
+4. Sign in at `https://id.atlassian.com`; create an API token at `https://id.atlassian.com/manage-profile/security/api-tokens` (label `forge-cli`; shown once).
+5. Create a free site at `https://www.atlassian.com/software/jira/free` — **Jira Software + Jira Service Management**.
+6. `cd phase0/validator-probe && npm install`
+7. `forge create` → `relay-phase0-probe` (**only if step 2 found no existing app**; this writes the real `app.id`)
+8. `forge login` → email + token
+9. `forge deploy -e development`
+10. `forge install --site <your-site>.atlassian.net --product jira`
 
 **T12 itself**
 
-6. `cd phase0/validator-probe && npm install`
-7. `forge create` → name it `relay-phase0-probe`. **This writes the real `app.id` into `manifest.yml`** — it is not committed as a secret, it is just an identifier.
-8. `forge deploy -e development`
-9. `forge install --site <your-site>.atlassian.net --product jira`
-10. In Jira: **create a company-managed project** (choose "Company-managed" / classic template — *not* team-managed).
-11. Project settings → **Issues → Workflows** → edit the workflow → select the transition you will use as the closing transition → **Validators** → add rule.
-12. **Look for `Relay closure gate (probe)` in the list.** This is the whole test.
-13. If it is there: add it, **publish the workflow**, save. If it is not there: stop and record exactly what the picker offered.
+11. In Jira, create a **company-managed** project (classic template — not team-managed).
+12. Project settings → **Issues → Workflows** → edit the workflow → select the transition you will use to close → **Validators** → add rule.
+13. **Look for `Relay closure gate (probe)` in the picker.** That is the test.
+14. If present: add it, **publish the workflow**, save. If absent: stop and record exactly what the picker offered.
 
-**Record these six things — they are what T12 needs**
+**Report back these six things**
 
-| # | Observation | Why it matters |
+| # | Observation | Why |
 | --- | --- | --- |
 | 1 | Did `Relay closure gate (probe)` appear in the validator picker? | the PASS/FAIL line |
-| 2 | Did you have to enable anything first — any toggle, banner, admin setting, "enable preview" prompt? | distinguishes possibility A from B |
-| 3 | The exact menu path you used to reach the validator picker | the documented path assumes the classic editor |
-| 4 | Which workflow editor appeared — classic or the new one? | they behave differently for this module |
-| 5 | Any error from `forge lint` or `forge deploy` (paste raw) | scope acceptance (E21) |
-| 6 | A screenshot of the picker showing the rule, or of the empty picker | evidence, and the only artefact that settles E19 |
+| 2 | Did anything have to be enabled first — toggle, banner, prompt, admin setting? | distinguishes possibility A from B (§4.4) |
+| 3 | The exact menu path you used | the documented path assumes the classic editor |
+| 4 | Classic or new workflow editor? | they behave differently for this module |
+| 5 | Raw output of `forge lint` and `forge deploy` | scope acceptance (E20) |
+| 6 | A screenshot of the picker, populated or empty | the only artefact that settles E18 |
 
-**Then stop.** Do not run E1. Record these six, send them back, and I will write T12 up as PASS or FAIL and update the plan accordingly.
+Then **stop**. Do not run E1. With those six I can write T12 up as PASS or FAIL and update the plan.
 
-If you would rather I produce the machine-readable result, the shape is in `RELAY-V2.1-LIVE-BLOCKERS.md` §4 under `probes.T12`.
+**Do not paste an API token into this conversation**, and do not commit one. Nothing in this project needs it.
 
 ---
 
-## 12. Documentation findings worth acting on later — recorded, not applied
+## 12. Separation from Phase 0.2
 
-While consulting the sources for T12, three things surfaced that bear on V2.1. **None has been applied**; V2.1 is untouched, per the scope of this task. They are logged here so they are not lost.
+Because this was your concern, stated explicitly:
 
-| # | Finding | Effect on V2.1 | Suggested timing |
+| Phase 0.2 material | Used in this report as | Not used as |
+| --- | --- | --- |
+| 71 passing tests | A one-line check that this task changed no test result | Evidence about the validator or Preview |
+| `manifest.yml` contents | The object of the registration inspection (§5) | Proof of deployability |
+| `t12/probe-readiness.txt` schema conformance | Offline structural check | Proof the platform accepts it |
+| Phase 0.2's live matrix (T1–T10b, all `NOT TESTED`) | Cited only to show T12 is **not** among them | A substitute for T12 |
+| Phase 0.2's decision (`PROCEED AFTER FIXES`) | **Not cited at all** — it is not this task's verdict | This report's verdict |
+
+This report's verdict is BLOCKED on T12 specifically. It says nothing about whether Relay should proceed, and it must not be read as Phase 0.2's decision restated.
+
+---
+
+## 13. Documentation findings worth acting on later — recorded, not applied
+
+Three things surfaced while consulting the sources. **None has been applied**; V2.1, Phase 0 and Phase 0.2 are untouched, per the scope of this task.
+
+| # | Finding | Effect | Suggested timing |
 | --- | --- | --- | --- |
-| F1 | The module reference states the rule applies to transitions "in **company-managed projects**" — official prose, not just practitioner reports | Upgrades V2.1 §2/R-01 from third-party to documentation-supported. The page's own example still declares both types, so the contradiction stands and E3 still decides | V2.2, after E3 |
-| F2 | The same page states a validator "will evaluate to false in all other cases, including … **the app providing the workflow validator is uninstalled**" | Upgrades V2.1's uninstall inference (I-01) to documentation-supported **for expression validators**; the lambda path remains inferred. F10 is unaffected and still P0 | V2.2, after E4 |
-| F3 | `resolver` is still marked Required = Yes in the property table while the page's example omits it and the schema does not require it | Confirms V2.1 §4.1 caveat 2 exactly as written; no change needed | — |
+| **F1** | The module reference states the rule applies to transitions "in **company-managed projects**" — official prose, not just practitioner reports | Upgrades V2.1's team-managed claim (R-01) from third-party to documentation-supported. The page's own example still declares both types, so the contradiction stands and E3 still decides | V2.2, after E3 |
+| **F2** | "A workflow validator only evaluates to true if the provided Jira expression evaluates to true. It will evaluate to false in all other cases, including … **the app providing the workflow validator is uninstalled**" | Upgrades V2.1's uninstall inference (I-01) to documentation-supported **for expression validators**; the lambda path remains inferred | V2.2, after E4 |
+| **F3** | `resolver` is still marked Required = Yes in the property table, while the page's example omits it and the schema does not require it | Confirms V2.1 §4.1 caveat 2 exactly as written; no change needed | — |
 
-F2 is the most consequential: if Atlassian's own documentation says an uninstalled app's validator evaluates to false, the "blocked workflow after uninstall" hazard is no longer a guess. It does not change what Relay must ship — the pre-uninstall audit stays P0 — but it changes how the claim may be stated, from *"this is expected to happen"* to *"Atlassian documents that this happens, for expression-based validators; our lambda case remains untested."*
+F2 is the consequential one: Atlassian's own documentation says an uninstalled app's validator evaluates to false, so the "blocked workflow after uninstall" hazard is no longer only an inference. It does not change what Relay must ship — the pre-uninstall audit stays P0 — but it changes how the claim may be stated.
 
 ---
 
-## 13. What this report does not change
+## 14. What this report does not change
 
 - No acceptance criterion, threshold or score.
 - No Phase 0/0.2 result, report or test.
-- No V2 or V2.1 claim — the three findings in §12 are logged for a later revision, not applied.
+- No V2 or V2.1 claim — §13's findings are logged for a later revision, not applied.
 - No probe source file, manifest field or architecture decision.
-- The closure-receipt design in V2.1 §3 is untouched and still waiting on T15 and T13.
+- The closure-receipt design (V2.1 §3) is untouched and still waiting on T15 and T13.
 
 T12 remains the first item in the live sequence, and it remains unrun.
 
-One housekeeping note: `harness/validate-manifest.mjs` rewrites `phase0/harness/results/manifest-validation.json` when it runs, and the only change it made here was the schema path (from the global CLI install to this session's local one). The committed file was restored byte-for-byte, so no Phase 0 result differs because of T12.
+**One integrity note:** `harness/validate-manifest.mjs` rewrites `phase0/harness/results/manifest-validation.json` when it runs. Its only change was the schema path (global CLI install → this session's local one). The committed file was restored byte-for-byte, so no Phase 0 result differs because of this task.
 
 ---
 
-*Evidence files: `phase0/t12/{environment,connectivity,probe-readiness,documentation}.txt`.*
+*Evidence: `phase0/t12/{environment,connectivity,probe-readiness,documentation}.txt`.*
