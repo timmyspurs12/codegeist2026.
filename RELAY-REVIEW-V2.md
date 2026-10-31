@@ -1,6 +1,9 @@
 # Relay — Pre-Build Product Review (v2)
 
-**Status:** supersedes `RELAY-PRE-BUILD-RED-TEAM-REVIEW.md` (v1)
+**Status:** supersedes `RELAY-PRE-BUILD-RED-TEAM-REVIEW.md` (v1). **Superseded where it speaks by [`RELAY-REVIEW-V2.1.md`](RELAY-REVIEW-V2.1.md).**
+
+> **Read V2.1 first.** It corrects six defects in this document: the missing closure-provenance write path (§9.6 vs §9.8 vs AC12), the uninstall evidence classification (§4.1, §7.4), the extraction-benchmark terminology (§3.3, §6.1), the model data-handling claim (§11.8), the executive summary's score, and twelve smaller inconsistencies (§6 of V2.1). This document remains for the record, and for the sections V2.1 binds by reference.
+
 **Date:** 30 October 2026 · **Deadline:** 22 December 2026 (53 days)
 **Evidence tags:** **[V]** verified in official Atlassian documentation, package internals or an executed test · **[R]** published research or third-party report · **[H]** judgement, hypothesis or recommendation
 
