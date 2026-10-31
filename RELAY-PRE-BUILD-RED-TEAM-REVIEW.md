@@ -1,5 +1,10 @@
 # Relay — Pre-Build Red-Team Product Review
 
+> **SUPERSEDED by `RELAY-REVIEW-V2.md`.** Kept for the record only. v2 corrects three
+> conclusions in this document using Phase 0 / 0.2 evidence: the team-managed project
+> limitation, the uninstall behaviour, and the existence of an open-source Forge app
+> that already ships this enforcement architecture. Read v2.
+
 **Status:** independent review, commissioned to challenge the concept before development
 **Date:** 30 October 2026 · **Deadline:** 22 December 2026 (53 days)
 **Evidence tags:** **[V]** verified in official Atlassian/Devpost documentation · **[R]** published research or third-party report (confidence noted) · **[H]** judgement or hypothesis

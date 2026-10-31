@@ -70,7 +70,7 @@ curl -s "$BASE?action=state&key=HOU-1&blocking=2&unowned=1&overdue=1"
 | T5 | Same as T2, from the **board** | Drag card to Done | Blocked identically | |
 | T6 | Same as T2, from the **issue view** | Click transition | Blocked identically; message renders on the issue view | |
 | T7 | Same as T2 via REST | `POST /rest/api/3/issue/{key}/transitions` with the Done id | **HTTP 400**, `errorMessages` contains the Relay message | |
-| T8 | Same as T2 in a **team-managed** project | Transition | Blocked (verifies `projectTypes` includes team-managed) | |
+| T8 | Same as T2 in a **team-managed** project | Transition | **Expected: NOT blocked; the validator may not appear in the editor at all.** Three independent sources say team-managed projects cannot host third-party validators despite `projectTypes` listing them (see `RELAY-REVIEW-V2.md` §0). A failure here is a known result, not a surprise — record the exact UI symptom | |
 | T9 | Add a **post function** (e.g. set a field) after the validator | Attempt T2 | Post function **does not run**; the field stays unset. This is the row that separates enforcement from a warning | |
 | T10 | `forge uninstall`, then transition any issue | Transition | Record exactly what happens, including whether the transition is missing from the UI or refused | |
 | T10b | After T10, as a **project admin** | Try to open the workflow editor and remove the orphaned validator | Record whether the editor still lists it and whether publishing restores transitions. This is the recovery path | |
