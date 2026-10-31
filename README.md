@@ -10,4 +10,6 @@ Atlassian Codegeist 2026 — research, review and Phase 0 validation for **Relay
 | `phase0/` | Technical validation: probe app, 30-comment labelled benchmark, 71 tests, reports. Live validation still blocked on Atlassian access. | **blocked** |
 | `phase0/PHASE-0.2-REPORT.md` | Latest validation status, the live test matrix, and the exact user actions required. | current |
 
+The review's scores are machine-checked: `node phase0/harness/check-review.mjs` verifies that the §8 table sums to its totals and that §0, §8 and §11 state the same result.
+
 No application code has been written. That is deliberate: the review gates the build.

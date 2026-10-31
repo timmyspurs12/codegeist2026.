@@ -32,7 +32,7 @@ This is simultaneously a competitor, a validation of the architecture, and the p
 
 ### The verdict now
 
-v1 scored Relay 81 and Close Call 80, and called the gap noise. The new evidence moves Relay's Atlassian-fit and feasibility scores down. **Relay is now 79 to Close Call's 80** — still inside the error bars, but the direction of travel is wrong and I am not going to hide it.
+v1 scored Relay 81 and Close Call 80, and called the gap noise. Re-scoring against the Phase 0 evidence moves one number: Relay's **MVP feasibility, 10 → 9** — for the team-managed limitation, the uninstall hazard, and two phases without a live result on the mechanism the product depends on. **Relay is now level with Close Call at 80**, which is inside the error bars in a way that no longer favours Relay at all, and I am not going to hide it.
 
 **Recommendation: BUILD RELAY WITH SPECIFIC MODIFICATIONS** — eight of them. But it is now a decision that rests entirely on two experiments, and one of them is a live-site test that has already failed once for environmental reasons. If the closure gate cannot be made to block a transition on a company-managed project within the first 48 hours, the correct answer is Close Call, and the code to get there is 70% shared.
 
