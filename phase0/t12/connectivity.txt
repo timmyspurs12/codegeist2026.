@@ -1,0 +1,28 @@
+# T12 network egress capture
+# captured: 2026-10-31T14:20:08Z (UTC)
+
+## DNS resolution
+id.atlassian.com               13.227.180.4
+api.atlassian.com              13.227.180.4
+developer.atlassian.com        13.227.180.4
+admin.atlassian.com            18.65.238.47
+your-site.atlassian.net        13.227.180.4
+registry.npmjs.org             2606:4700::6810:322
+
+## HTTPS (curl, 8s timeout)
+https://id.atlassian.com           HTTP 000  0.052125s
+https://api.atlassian.com          HTTP 000  0.047799s
+https://developer.atlassian.com    HTTP 000  0.046056s
+https://admin.atlassian.com        HTTP 000  0.062409s
+https://registry.npmjs.org         HTTP 200  0.053820s
+
+## Full error for a representative Atlassian host
+$ curl -sS -m 8 -o /dev/null https://id.atlassian.com
+curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to id.atlassian.com:443 
+
+## Interpretation
+Atlassian names resolve (id/api/developer/your-site all return 13.227.180.4, which looks
+like an egress-proxy address; admin.atlassian.com returns 18.65.238.47) but the TLS
+handshake is refused by the sandbox network policy on all four. The npm registry, which is
+on the allowlist, returns 200 from the same shell. No Atlassian API can be reached from
+this environment, so no live site operation is possible.

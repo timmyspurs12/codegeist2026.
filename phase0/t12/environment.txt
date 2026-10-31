@@ -1,0 +1,29 @@
+# T12 environment capture
+# captured: 2026-10-31T14:20:00Z (UTC)
+
+$ node -v
+v22.22.3
+$ npm -v
+10.9.8
+$ forge --version
+14.2.0
+$ which forge (global PATH)
+not on PATH — using local install: /tmp/forge-cli/node_modules/.bin/forge
+
+$ forge whoami
+Error: Not logged in. If a local keychain is available, run forge login, otherwise set environment variables before trying again. See https://go.atlassian.com/dac/platform/forge/getting-started/#log-in-with-an-atlassian-api-token for more.
+Rerunning the command with --verbose may give more details.
+  [exit code: 1]
+
+$ forge deploy   (run in phase0/validator-probe)
+Error: Not logged in. If a local keychain is available, run forge login, otherwise set environment variables before trying again. See https://go.atlassian.com/dac/platform/forge/getting-started/#log-in-with-an-atlassian-api-token for more.
+Rerunning the command with --verbose may give more details.
+
+$ ls -la ~/.forge
+ls: cannot access '/home/user/.forge': No such file or directory
+
+# environment variable NAMES only (values never printed)
+(none matching atlassian|forge|jira|site)
+
+# forge settings (usage-analytics disabled to avoid the non-TTY analytics prompt)
+│ usage-analytics     │ Allow Forge to collect CLI usage and error reporting information │ false   │

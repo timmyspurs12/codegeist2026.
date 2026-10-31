@@ -1,0 +1,101 @@
+# T12 documentation capture
+# captured: 2026-10-31T14:21Z (UTC)  (pages fetched through the page-fetch tool; direct sandbox egress to Atlassian is blocked)
+# Quotations are verbatim from the pages named. Nothing here is a live observation.
+
+## 1. jira:workflowValidator module reference
+URL: https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-validator/
+Page title: "Jira workflow validator (Preview)"
+Last updated on page: Mar 12, 2025
+All four chunks of the page were read for this capture.
+
+Q1.1 (Preview status)
+  "This section describes a Forge _preview_ feature. Preview features are deemed stable;
+   however, they remain under active development and may be subject to shorter deprecation
+   windows. Preview features are suitable for early adopters in production environments."
+
+Q1.2 (project types, prose)
+  "The `jira:workflowValidator` module defines a validator that can be added to workflow
+   transitions in company-managed projects (see: Advanced workflow configuration)."
+
+Q1.3 (projectTypes property description)
+  "Specifies which project types can use this workflow rule.
+   Options:
+   - 'company-managed': Available only in company-managed projects
+   - 'team-managed': Available only in team-managed projects
+   - ['company-managed', 'team-managed']: Available in both project types
+   By default, workflow rules are enabled only for company-managed projects
+   (i.e. ['company-managed'])"
+
+Q1.4 (the example contradicts Q1.2 and Q1.3's default)
+  modules:
+    jira:workflowValidator:
+      - key: my-forge-workflow-validator
+        name: Work item summary contains text validator
+        ...
+        projectTypes: ['company-managed', 'team-managed']
+
+Q1.5 (uninstall — new, and stronger than anything previously held)
+  "A workflow validator only evaluates to true if the provided Jira expression evaluates to
+   true. It will evaluate to false in all other cases, including:
+     - the Jira expression fails to evaluate because of errors or returns anything other than
+       a Boolean value ...
+     - the app providing the workflow validator is uninstalled"
+  NOTE: this sentence sits in the "Validating with Jira expressions" section. It is
+  authoritative for expression-based validators. It does not explicitly extend to
+  lambda-function validators.
+
+Q1.6 (new workflow editor)
+  "The new workflow editor supports this module in the same way. ...
+   The context will also include the workflow ID and project ID for team-managed workflows
+   in the new editor."
+
+Q1.7 (properties table)
+  `resolver`: "{ function: string } or { endpoint: string }" | Required: **Yes**
+  (contradicts the page's own example, which omits it, and the JSON Schema, which does not
+   require it — recorded in V2.1 §4.1 caveat 2 and unchanged by this capture)
+
+Q1.8 (scopes)
+  "The OAuth 2.0 scope read:jira-work must be granted to the app to ensure that modifiedFields
+   are attached; otherwise, they won't be included."
+
+Q1.9 (JSM)
+  "Additionally, these are available for Jira Service Desk transitions:
+     - customerRequest ... - serviceDesk ..."
+  (i.e. the module is documented as usable on JSM customer-request transitions, for
+   expression validators at minimum)
+
+Q1.10 (ENABLEMENT)
+  No enablement step, admin toggle, site setting, feature flag or opt-in procedure appears
+  anywhere on this page. The page is four chunks long and all four were read in full for
+  this capture; none of them contains installation, enablement or admin guidance beyond the
+  manifest declaration and attaching the rule to a transition of a company-managed project.
+
+## 2. Forge release phases
+URL: https://developer.atlassian.com/platform/forge/beta-limitations  (redirects to /whats-coming/)
+Title: "Forge release phases: EAP, Preview, and GA"   Last updated: Aug 28, 2026
+
+Q2.1
+  "Forge preview features are available to all users, and enjoy the same level of support as
+   GA features. However, preview features are usually turned off by default (although they
+   can be enabled on production environments); for instructions on enabling them, refer to
+   their documentation."
+
+Q2.2 (table)
+  Feature availability, Preview: "All Forge users, and can be enabled on production environments"
+  Opt-in, Preview: "Required"
+
+Q2.3
+  "Any breaking changes to a preview feature are subject to a minimum 1-month deprecation
+   period. ... Once a preview feature transitions to GA, any breaking changes will be subject
+   to a 6-month deprecation period."
+
+## 3. Manifest schema (offline, package internals)
+Package: @forge/manifest 13.8.0 (bundled with @forge/cli 14.2.0)
+  jira:workflowValidator.required  = ["description", "name", "key"]
+  jira:workflowValidator.projectTypes.default = ["company-managed"]
+  jira:workflowValidator.projectTypes.items.enum = ["team-managed", "company-managed"]
+
+## 4. What these pages do NOT say
+  - No toggle, flag, or setting that enables jira:workflowValidator on a site.
+  - No statement that Preview modules may not be listed on the Marketplace.
+  - No procedure for enabling a preview module that is specific to Jira admin UI.

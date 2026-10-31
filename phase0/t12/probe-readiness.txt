@@ -1,0 +1,32 @@
+# T12 probe readiness capture
+# captured: 2026-10-31T14:20:12Z (UTC)
+
+## Manifest schema conformance (offline; the part of 'forge lint' that needs no account)
+$ NODE_PATH=/tmp/forge-cli/node_modules node harness/validate-manifest.mjs \
+    /tmp/forge-cli/node_modules/@forge/cli/node_modules/@forge/manifest/out/schema/manifest-schema.json \
+    validator-probe/manifest.yml
+manifest conforms to the @forge/manifest JSON Schema
+modules: jira:workflowValidator, llm, function, webtrigger
+
+## Module declarations in the probe manifest
+16:  jira:workflowValidator:
+31:  llm:
+37:  function:
+43:  webtrigger:
+
+## Known blocker found by inspection: app.id is still the placeholder
+61:  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  -> 'forge create' must run first to write the real app id.
+
+## Dependencies declared vs imported
+$ declared:
+@forge/api, @forge/kvs, @forge/llm
+$ imported from node_modules:
+@forge/api @forge/kvs @forge/llm 
+$ node_modules present?
+  absent — 'npm install' required before deploy
+
+## Test suite state (unchanged by T12)
+# tests 71
+# pass 71
+# fail 0

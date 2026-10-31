@@ -13,6 +13,7 @@ Atlassian Codegeist 2026 — research, review and Phase 0 validation for **Relay
 | `CODEGEIST-2026-RESEARCH-REPORT.md` | The original 12-section competition and opportunity research. | background |
 | `phase0/` | Technical validation: probe app, 30-comment labelled benchmark, 71 tests, reports. | **blocked** |
 | `phase0/PHASE-0.2-REPORT.md` | Latest validation status, the live test matrix, and the exact user actions required. | current |
+| `phase0/T12-VALIDATION-REPORT.md` | **T12 — can the validator be enabled on a fresh site?** Verdict **BLOCKED**: no site, no login, no network path from this sandbox. Includes the documented enablement procedure (there isn't one) and the exact steps for a live run. | **blocked** |
 
 Both reviews' scores are machine-checked: `node phase0/harness/check-review.mjs` sums each score table, verifies the totals, checks that the prose headline matches the table, and rejects stale wording from earlier drafts.
 
