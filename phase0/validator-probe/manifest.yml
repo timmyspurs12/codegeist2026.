@@ -46,6 +46,14 @@ modules:
 
 permissions:
   scopes:
+    # Required by @forge/kvs. Without it every kvs.get/set throws
+    # "Request principal is not authorized to use storage resource".
+    # Its absence is why the published validator could never block: the read
+    # failed, gate-handler.js caught it, marked state unavailable, and the
+    # fail-open policy allowed the transition. Storage is not optional for a
+    # gate that reads precomputed state — the whole design depends on it.
+    # (developer.atlassian.com/platform/forge/storage-reference/kvs-api/)
+    - storage:app
     - read:jira-work
     - write:jira-work
   # Empty on purpose: the probe must not need egress, and Forge LLM traffic

@@ -137,6 +137,29 @@ evidence of the step — see §2.3.
   remain UNSCORED. It only retires the open question of whether the LLM module
   works on this environment at all.
 
+### A16 — the published validator could never have blocked anything
+- Writing gate state returned
+  **`{"error":"Request principal is not authorized to use storage resource"}`**.
+- Cause: `@forge/kvs` requires the **`storage:app`** scope in the manifest. The
+  probe declared only `read:jira-work` and `write:jira-work`.
+  [DOCUMENTATION VERIFIED — kvs-api reference]
+- What that means for the rule already published on `Mark as done`: every
+  `kvs.get` throws; `gate-handler.js` catches it, sets
+  `state = { stateAvailable: false }`; `decideGate` then applies its fail-open
+  policy and allows. **The validator has therefore never had access to gate state,
+  and cannot block under any configuration.** [LIVE VERIFIED at the endpoint,
+  INFERRED at the validator by the same scope governing both]
+- **This re-reads A13.** The `FS-1` closure was allowed because a storage
+  authorization error was swallowed, not because the ledger was empty. Behaviour
+  was fail-open either way, which is why it looked correct. The mechanism was not.
+- It also exposes a trap for the product: under `policy=fail-closed`, the same
+  missing scope would have blocked **every** closure on the site. The probe's
+  fail-open default is hiding a configuration error rather than reporting one,
+  and the audit event it emits goes to a log nobody was watching.
+- Fix applied to the manifest: `storage:app` added. **Not yet deployed** — a
+  permission change forces a major version bump, a redeploy and
+  `forge install --upgrade` (re-consent).
+
 ---
 
 ## 2. What is established so far
@@ -181,7 +204,8 @@ that reload, not on the panel still being on screen.
 
 | # | Step | Expectation |
 |---|---|---|
-| E1.0 | deploy the `lab-request.js` fix, then re-probe `?action=bogus` | returns `unknown action` (400), proving parameters arrive |
+| E1.0a | deploy the `lab-request.js` fix, re-probe `?action=bogus` | **done** — parameters arrive |
+| E1.0b | add `storage:app`, deploy, `forge install --upgrade` | kvs read/write permitted |
 | E1.1 | `Mark as done` on `FS-1` with **no gate state** | proceeds — fail-open (run in A13) |
 | E1.2 | write gate state `blocking=2` for `FS-1` | state stored, message computed |
 | E1.3 | `Mark as done` on `FS-1` from the issue view | **refused**, message with counts |
@@ -201,6 +225,7 @@ that reload, not on the panel still being on screen.
 | `phase0/validator-probe/src/lab-request.js` | **new** — builds a URL from the webtrigger event (runtime or synthetic) |
 | `phase0/validator-probe/src/index.js` | one line: use `requestUrl(request)` instead of `request?.url` |
 | `phase0/validator-probe/test/lab-request.test.js` | **new** — 8 regression tests using the documented runtime event |
+| `phase0/validator-probe/manifest.yml` | added `storage:app` scope — without it the validator can never read state |
 
 The probe's validator path is untouched: `gate-handler.js`, `gate.js` and the
 `jira:workflowValidator` function are unmodified, so the rule already published on
