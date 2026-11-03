@@ -22,6 +22,7 @@ import { RECOVERY_RUNBOOK, RUNBOOK_VERIFIED } from './uninstall-audit.js';
 import { EMIT_OBLIGATIONS_TOOL } from './extraction/schema.js';
 import { SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage, sanitiseCommentText } from './extraction/prompt.js';
 import { processModelOutput } from './extraction/pipeline.js';
+import { requestUrl } from './lab-request.js';
 import { scoreRun, renderMarkdown } from './extraction/score.js';
 
 import { comments } from './data/comments.js';
@@ -80,7 +81,9 @@ export const gate = createGateHandler({
  * @param {any} request
  */
 export const lab = async (request) => {
-  const url = new URL(request?.url ?? 'https://probe.local/');
+  // The Forge webtrigger runtime sends `queryParameters`, not `url`.
+  // See ./lab-request.js for why that distinction broke this endpoint.
+  const url = requestUrl(request);
   const action = url.searchParams.get('action') ?? 'env';
 
   try {
