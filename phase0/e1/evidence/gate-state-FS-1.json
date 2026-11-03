@@ -1,0 +1,16 @@
+{
+  "_source": "<webtrigger URL>?action=state&key=FS-1&blocking=2&unowned=1&overdue=1",
+  "_note": "Signed webtrigger URL deliberately omitted. Captured live after adding storage:app and running forge install --upgrade.",
+  "ok": true,
+  "key": "FS-1",
+  "state": {
+    "enabled": true,
+    "stateAvailable": true,
+    "blockingCount": 2,
+    "unownedCount": 1,
+    "overdueCount": 1,
+    "policy": "fail-open",
+    "updatedAt": "2026-11-03T10:04:47.176Z"
+  },
+  "message": "Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)"
+}

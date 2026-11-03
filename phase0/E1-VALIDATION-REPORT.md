@@ -1,7 +1,14 @@
 # E1 — Enforcement validation (workflow validator, live)
 
-**Status: IN PROGRESS.** This document is a running log, updated as each step is
-observed. It is not a verdict until the status line above says PASS or FAIL.
+**Status: PASS — core question answered live.**
+
+`jira:workflowValidator` **blocks** a transition on a company-managed project, from
+the issue view and from the REST API, with a message built from stored state at
+call time; it **releases** the same transition when the stored count is zero; and a
+refusal **does not apply** the transition.
+
+That PASS covers exactly what §2.1 lists. What it does not cover is in §2.4, and
+none of that should be implied by this verdict.
 
 **Question E1 answers:** `jira:workflowValidator` is *offered* in Jira's workflow
 configuration (proven in T12). Does it actually **block** a transition, and with
@@ -160,6 +167,57 @@ evidence of the step — see §2.3.
   permission change forces a major version bump, a redeploy and
   `forge install --upgrade` (re-consent).
 
+### A17 — the gate blocks a live closure (issue view)
+- The scope fix was deployed as **3.0.0** (`--approve MAJOR_VERSION_RULE`) and
+  installed with `forge install --upgrade`; the consent listed exactly one new
+  scope, `storage:app`. The webtrigger URL was **not** reissued.
+- Gate state for `FS-1` written: `blockingCount: 2`, `unownedCount: 1`,
+  `overdueCount: 1`, `policy: fail-open`, `updatedAt 2026-11-03T10:04:47Z`.
+  Response captured in `phase0/e1/evidence/gate-state-FS-1.json`.
+- `FS-1` was reopened via `Reopen issue` (no validator on that transition) and put
+  back to `Reopened`, then `Mark as done` was submitted with `Resolution: Done`.
+- Jira **refused**. The transition dialog stayed open, carrying a red banner:
+
+  > Relay has unresolved promises attached to this case. Review the obligation
+  > ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)
+
+  [image-70 → `E1-A17-blocked-on-mark-as-done.png`]
+- The counts match the state written seconds earlier, so the message is derived
+  from storage at call time. It is not a constant string in the app.
+
+### A18 — the refusal did not apply the transition
+- The dialog was cancelled; `FS-1` still read **`Reopened`** and `Mark as done` was
+  still offered. No partial state change. [image-71 → `E1-A18-…png`]
+
+### A19 — there is no board on this site
+- `/jira/software/projects/FS/boards` → **404**. The app switcher lists Loom, Teams,
+  Goals, Projects and **no Boards**. The project sidebar offers **Queues**, not a
+  board. [image-72, image-73]
+- **Board path: NOT APPLICABLE** in this environment. A JSM queue lists work but
+  does not perform transitions, so it is not a substitute for the board test.
+
+### A20 — the REST path is gated too
+- `GET /rest/api/3/issue/FS-1/transitions` → `Mark as done` is **id 61**,
+  `hasScreen: true`.
+- `POST /rest/api/3/issue/FS-1/transitions` with
+  `{"transition":{"id":"61"},"fields":{"resolution":{"name":"Done"}}}` returned:
+
+  ```
+  HTTP 400
+  {"errorMessages":["Relay has unresolved promises attached to this case. Review
+  the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1
+  overdue)"],"errors":{}}
+  ```
+- So integrations and automations have **no bypass**: the validator fires on the
+  API path with the same message as the browser path.
+
+### A21 — the gate releases when the count is zero
+- State rewritten with `blocking=0`: `blockingCount: 0`, `message: null`.
+- The **identical** POST — same issue, same transition, same payload, same user —
+  then returned **`HTTP 204`** and `FS-1` closed.
+- The only variable was the stored count. The gate discriminates between "unresolved
+  obligations" and "none", which is the difference between a validator and a lock.
+
 ---
 
 ## 2. What is established so far
@@ -172,6 +230,11 @@ evidence of the step — see §2.3.
 4. The rule takes **no configuration** — the module supplies no settings form.
 5. Publishing a validator into this workflow produced **no confirmation dialog**
    and no visible warning about Preview status.
+6. It **blocks a live transition**, from the issue view and from the REST API, with
+   a message whose counts come from stored state at call time (A17, A20).
+7. A refusal **does not apply the transition** — the status is unchanged (A18).
+8. It **releases** when the stored count is zero: the identical request succeeds
+   (A21).
 
 ### 2.2 A platform constraint recovered from the UI
 The transition panel states, above the customer-transitions toggle:
@@ -188,39 +251,44 @@ editor panel. The only separator is discarding the editor's in-memory state and
 reloading from the server — which is what A11 did. Claims of persistence rest on
 that reload, not on the panel still being on screen.
 
-### 2.4 Not established
-- That the rule **blocks** anything. Nothing has yet been refused.
-- That the rule is **invoked at all** on an allowed transition (see A13 caveat).
-- Behaviour from the **board**, from **bulk change**, from the **REST API**.
-- Whether a **post function** on the same transition is suppressed when the rule
-  blocks it.
-- Behaviour when `blocking = 0`.
-- Anything at all about **team-managed** projects, the Case/ESM workflows, or
-  customer-visible transitions.
+### 2.4 Not established — do not imply these from the verdict
+- Whether a **post function** on the same transition is skipped when the gate
+  blocks it (V2.1 item T9). Untested.
+- **Team-managed** projects (E3). Atlassian's community and docs say validators are
+  inert there; nothing in this run tests a team-managed project.
+- **Customer-facing** JSM transitions. Customer transitions were **off** on the
+  tested transition, and Jira states on screen that rules do not apply when they
+  are on.
+- The **Case** and **ESM** workflows. Only the Task/Sub-task workflow
+  (`FS: Jira Service Management default workflow`) was exercised.
+- The **~25s synchronous budget** under real load. Every call here was a single
+  manual invocation with a warm function.
+- **Bulk change** and automation-rule transitions.
+- Anything about **extraction quality** — Forge LLM is reachable (A15) but
+  extraction remains UNSCORED.
 
 ---
 
-## 3. Remaining steps
+## 3. Test ledger
 
-| # | Step | Expectation |
+| # | Step | Result |
 |---|---|---|
-| E1.0a | deploy the `lab-request.js` fix, re-probe `?action=bogus` | **done** — parameters arrive |
-| E1.0b | add `storage:app`, deploy, `forge install --upgrade` | kvs read/write permitted |
-| E1.1 | `Mark as done` on `FS-1` with **no gate state** | proceeds — fail-open (run in A13) |
-| E1.2 | write gate state `blocking=2` for `FS-1` | state stored, message computed |
-| E1.3 | `Mark as done` on `FS-1` from the issue view | **refused**, message with counts |
-| E1.4 | same attempt from the board, if one exists | refused identically |
-| E1.5 | same attempt via `POST /rest/api/3/issue/FS-1/transitions` | **HTTP 400** |
-| E1.6 | write `blocking=0` | transition proceeds again |
-| E1.7 | post function on the same transition (T9) | not run when blocked |
-
----
+| E1.0a | deploy the `lab-request.js` fix, re-probe `?action=bogus` | **done** — parameters arrive, 400 `unknown action` |
+| E1.0b | add `storage:app`, deploy 3.0.0, `forge install --upgrade` | **done** — kvs read/write permitted |
+| E1.1 | `Mark as done` with no gate state | **allowed** (A13) — but see A16: the allow was a swallowed storage error, so it is not evidence about an empty ledger |
+| E1.2 | write `blocking=2` | **done** — state stored, message computed |
+| E1.3 | `Mark as done` from the issue view | **REFUSED** with counts (A17) |
+| E1.4 | same attempt from a board | **NOT APPLICABLE** — no board exists on this site (A19) |
+| E1.5 | same attempt via REST `POST …/transitions` | **HTTP 400** with the same message (A20) |
+| E1.6 | write `blocking=0`, repeat | **HTTP 204**, transition applied (A21) |
+| E1.7 | post function on the same transition | **NOT TESTED** |
 
 ## 4. Changed files
 
 | File | Change |
 |---|---|
-| `phase0/e1/screenshots/*.png` | 36 screenshots of this run (evidence) |
+| `phase0/e1/screenshots/*.png` | 40 screenshots of this run (evidence) |
+| `phase0/e1/evidence/gate-state-FS-1.json` | the state write that produced the refusal |
 | `phase0/E1-VALIDATION-REPORT.md` | this document |
 | `phase0/validator-probe/src/lab-request.js` | **new** — builds a URL from the webtrigger event (runtime or synthetic) |
 | `phase0/validator-probe/src/index.js` | one line: use `requestUrl(request)` instead of `request?.url` |
