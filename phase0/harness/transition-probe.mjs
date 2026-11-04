@@ -14,7 +14,7 @@
  * Usage:
  *   node phase0/harness/transition-probe.mjs --list --key FS-1 --label c1-listed
  *   node phase0/harness/transition-probe.mjs --key FS-1 --transition "Mark as done" \
- *        --label c1-blocking-2 --resolution Done
+ *        --label c1-blocking-2 --resolution Done        # only where the transition needs one
  *
  * Output: phase0/e1-customer/evidence/<label>.json (+ a one-line summary on stdout)
  */
@@ -40,7 +40,7 @@ const key = arg('key');
 const label = String(arg('label', `probe-${Date.now()}`));
 const listOnly = Boolean(arg('list', false));
 const transitionArg = arg('transition');
-const resolution = arg('resolution', 'Done');
+const resolution = arg('resolution', null);
 
 const email = process.env.JIRA_EMAIL;
 const token = process.env.JIRA_TOKEN;
@@ -83,7 +83,7 @@ async function main() {
     site: base,
     issueKey: String(key),
     transitionArg: transitionArg ? String(transitionArg) : null,
-    resolution: listOnly ? null : String(resolution),
+    resolution: resolution ? String(resolution) : null,
     statusBefore: before.status,
     transitionsOffered: Array.isArray(listed.body?.transitions)
       ? listed.body.transitions.map((t) => ({ id: t.id, name: t.name, to: t.to?.name, hasScreen: t.hasScreen }))
