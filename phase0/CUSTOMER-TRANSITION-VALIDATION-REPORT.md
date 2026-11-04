@@ -122,8 +122,57 @@ touched. The portal case requires a portal-facing request type, which uses
 
 ## 4. Results
 
-*Pending.* Filled from `phase0/e1-customer/evidence/*.json` and screenshots. No claim
-in this section may rest on the documented behaviour in §2.
+Evidence: `phase0/e1-customer/evidence/`. Every row below is a recorded run, not a
+reading of §2.
+
+### 4.1 The two paths, same transition, same broken invariant
+
+Both attempts target `FS-2` (`Report a maintenance issue`, `In Progress`) and the same
+transition, `Resolved` (id `121`, `In Progress → Done`), which carries the
+`Relay closure gate (probe)` validator and has the customer-portal switch **on and
+published**. Both were made while the gate state for `FS-2` held
+`blockingCount: 2` (1 with no owner, 1 overdue).
+
+| Label | Caller / path | Gate state | POST | Result | Final status | Validator ran? |
+|---|---|---|---|---|---|---|
+| `c3-3-agent-blocking-2` | Agent, `/rest/api/3/issue/FS-2/transitions` | `blockingCount: 2` | **400** | `refused_by_relay` — Relay sentence returned verbatim | `In Progress` (unchanged) | **yes** |
+| `c3-7-customer-blocking-2` | Customer, `/rest/servicedeskapi/request/FS-2/transition` | `blockingCount: 2` | **204** | **allowed** | **`Done`** | **no** — the validator never refused |
+
+*Provenance of the gate state.* The gate state for `FS-2` was written once, at
+`2026-11-04T10:17:43.500Z`, through the probe app's state webtrigger
+(`action=state&key=FS-2&blocking=2&unowned=1&overdue=1`). Nothing in this experiment
+writes gate state — the probe reads status and posts transitions only — so that single
+write is the state in force for both `c3-3` and `c3-7`. The write was deliberately not
+repeated for later runs: re-issuing it would have produced a timestamp *later* than the
+attempts it is meant to characterise.
+
+`c3-7` is the finding this experiment existed to produce: **the platform applies the
+customer-portal transition without consulting `jira:workflowValidator`.** The same
+transition, refused to an agent with the same unresolved commitments, was granted to a
+customer. This is LIVE VERIFIED, and it matches the Atlassian documentation quoted in
+§2 rather than contradicting it.
+
+### 4.2 What did not hold up, and is therefore not cited
+
+Recording these matters as much as recording the result — each one was a plausible
+"finding" that was really an instrument error.
+
+| Label | What it appeared to show | Why it is unusable |
+|---|---|---|
+| `c3-0`, `c3-1`, `c3-2` | "the customer endpoint offers two transitions" | Run before the `--customer` flag was present on the test machine; the flag was ignored and the **agent** endpoint was called. Not customer-path evidence. |
+| `c3-4-customer-blocking-2` | "the customer path refuses with a Jira error" | Sent the transition *name* where an id is required (`{"id":"Resolved"}`); Jira answered `sd.rest.error.bad.request`. A malformed request, not a decision. |
+| `c3-5-customer-blocking-2` | "no customer transition is available" | The harness read the customer list from `transitions`; the service-desk endpoint pages it under **`values`**, so the transition was recorded as absent while Jira was offering `Resolved`. Fixed in `45de185`; a test now pins the paged shape. |
+| `c3-6-customer-listed` | same | Kept as the raw body that exposed the shape bug: `{"size":1,…,"values":[{"id":"121","name":"Resolved"}]}`. |
+
+The lesson carried into the report: a probe that reports "no transition offered" can be
+reporting its own bug, and the only defence is to keep the raw response.
+
+### 4.3 Scope and blast radius of the published changes
+
+`FS: Default ESM workflow for Jira Service Management` serves the request types
+`Report a maintenance issue` and `Request an event`. The `FS` project holds two work
+items. The validator and the customer-portal switch are reverted once testing ends
+(§7); nothing outside this workflow was touched.
 
 ---
 
