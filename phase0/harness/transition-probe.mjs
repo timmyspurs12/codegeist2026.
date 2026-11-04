@@ -13,6 +13,7 @@
  *
  * Usage:
  *   node phase0/harness/transition-probe.mjs --list --key FS-1 --label c1-listed
+ *   node phase0/harness/transition-probe.mjs --customer --list --key FS-2 --label c3-portal-listed
  *   node phase0/harness/transition-probe.mjs --key FS-1 --transition "Mark as done" \
  *        --label c1-blocking-2 --resolution Done        # only where the transition needs one
  *
@@ -39,6 +40,7 @@ const base = String(arg('base', 'https://onepes930.atlassian.net')).replace(/\/+
 const key = arg('key');
 const label = String(arg('label', `probe-${Date.now()}`));
 const listOnly = Boolean(arg('list', false));
+const customerPath = Boolean(arg('customer', false));
 const transitionArg = arg('transition');
 const resolution = arg('resolution', null);
 
@@ -56,6 +58,9 @@ if (!listOnly && !transitionArg) die('give --transition <id or name>, or use --l
 
 // Built here and never logged.
 const auth = 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
+
+/** The customer transition endpoints the portal itself calls. */
+const CUSTOMER_API = (k) => `/rest/servicedeskapi/request/${encodeURIComponent(k)}/transition`;
 
 async function jira(path, init = {}) {
   const res = await fetch(`${base}${path}`, {
@@ -75,7 +80,8 @@ async function currentStatus() {
 
 async function main() {
   const before = await currentStatus();
-  const listed = await jira(`/rest/api/3/issue/${encodeURIComponent(key)}/transitions`);
+  const listPath = customerPath ? CUSTOMER_API(key) : `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`;
+  const listed = await jira(listPath);
 
   const record = {
     label,
@@ -89,15 +95,17 @@ async function main() {
       ? listed.body.transitions.map((t) => ({ id: t.id, name: t.name, to: t.to?.name, hasScreen: t.hasScreen }))
       : null,
     transitionIsListed: transitionArg ? isListed(listed.body, transitionArg) : null,
+    endpoint: customerPath ? 'servicedeskapi (customer transitions)' : 'rest/api/3 (agent transitions)',
   };
 
   if (!listOnly) {
     const match = findTransition(listed.body, transitionArg);
     const id = match?.id ?? String(transitionArg);
-    const attempt = await jira(`/rest/api/3/issue/${encodeURIComponent(key)}/transitions`, {
+    const attemptPath = customerPath ? CUSTOMER_API(key) : `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`;
+    const attempt = await jira(attemptPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildAttemptBody(id, resolution)),
+      body: JSON.stringify(customerPath ? { id: String(id) } : buildAttemptBody(id, resolution)),
     });
 
     const classified = classifyAttempt(attempt.status, attempt.body);

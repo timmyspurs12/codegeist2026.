@@ -16,7 +16,12 @@ export const RELAY_MARKER = 'unresolved promises';
  * @returns {{outcome: string, relayMessage: string|null, jiraErrors: string[]}}
  */
 export function classifyAttempt(status, body) {
-  const jiraErrors = Array.isArray(body?.errorMessages) ? body.errorMessages : [];
+  // The Jira issue endpoint returns errorMessages: []; the service-desk
+  // (customer transition) endpoint returns errorMessage: "..." instead.
+  const jiraErrors = [];
+  if (Array.isArray(body?.errorMessages)) jiraErrors.push(...body.errorMessages);
+  if (typeof body?.errorMessage === 'string') jiraErrors.push(body.errorMessage);
+  if (typeof body?.message === 'string') jiraErrors.push(body.message);
   const joined = jiraErrors.join(' ');
   const hasRelay = joined.toLowerCase().includes(RELAY_MARKER);
 

@@ -83,3 +83,17 @@ test('the transition payload carries the resolution only when asked', () => {
   });
   assert.deepEqual(buildAttemptBody('61', null), { transition: { id: '61' } });
 });
+
+test('the service-desk endpoint\'s singular errorMessage is classified too', () => {
+  // /rest/servicedeskapi/request/{key}/transition returns errorMessage: "..."
+  // rather than Jira's errorMessages: [...]. Treating that as a non-Relay
+  // refusal would have hidden the exact result this experiment exists to find.
+  const r = classifyAttempt(400, { errorMessage: 'Relay has unresolved promises attached to this case.' });
+  assert.equal(r.outcome, 'refused_by_relay');
+  assert.equal(validatorRan(r), 'yes');
+});
+
+test('a service-desk refusal that is not Relay\'s is still not a Relay refusal', () => {
+  const r = classifyAttempt(400, { errorMessage: 'Transition is not valid for this request' });
+  assert.equal(r.outcome, 'refused_by_jira');
+});
