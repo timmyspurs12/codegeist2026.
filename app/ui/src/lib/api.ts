@@ -101,6 +101,28 @@ export type ScanResult = {
   unavailable?: string;
 };
 
+export type FieldResolution = {
+  field: {
+    moduleKey: string; name: string; typeId: string | null; id: string | null; key: string | null;
+    resolved: boolean; resolvedAt: string | null; expression: string; manifestLine: string; placeholder: string;
+  };
+  expression: string;
+  manifestLine: string;
+  appliedExpression: string | null;
+  matchesApplied: boolean;
+  scope: string;
+  note: string;
+};
+
+export type ReconcileResult = {
+  attempted: number;
+  repaired: number;
+  alreadyInStep: number;
+  failed: { key: string; error: string }[];
+  ok: boolean;
+  note: string | null;
+};
+
 export type EnforcementCheck = {
   key: string;
   allowed: boolean;
@@ -111,6 +133,7 @@ export type EnforcementCheck = {
   ledgerRev: number | null;
   projection: Record<string, unknown> | null;
   field: number | null;
+  fieldInfo?: FieldResolution['field'] | null;
   syncError: string | null;
   diagnostics: { level: 'info' | 'warn' | 'error'; code: string; message: string }[];
 };
@@ -215,7 +238,9 @@ export const api = {
   async settings(): Promise<Record<string, unknown>> {
     if (invokeRemote) return (await invokeRemote('relay.settings.get')) as Record<string, unknown>;
     return {
-      openFieldId: null,
+      closureFieldId: null,
+      closureFieldTypeId: null,
+      closureExpressionApplied: null,
       capture: store.integrations.capture,
       validatorRegistered: false,
       conditionRegistered: false,
@@ -226,6 +251,36 @@ export const api = {
   async saveSettings(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (invokeRemote) return (await invokeRemote('relay.settings.set', patch)) as Record<string, unknown>;
     return { ...(await api.settings()), ...patch };
+  },
+
+  /** What the app-owned closure field is, for this app and environment. */
+  async resolveField(): Promise<FieldResolution> {
+    if (!invokeRemote) throw new Error('Fixture mode: resolving the closure field needs the Forge bridge.');
+    const res = (await invokeRemote('relay.field.resolve')) as FieldResolution;
+    store = {
+      ...store,
+      integrations: {
+        ...store.integrations,
+        enforcement: {
+          ...store.integrations.enforcement,
+          field: res.field,
+          fieldId: res.field.id,
+          fieldKey: res.field.key,
+          fieldTypeId: res.field.typeId,
+          fieldResolved: res.field.resolved,
+          conditionExpression: res.field.expression,
+          manifestLine: res.field.manifestLine,
+          expressionApplied: res.appliedExpression,
+        },
+      },
+    };
+    return res;
+  },
+
+  /** Re-derive every tracked issue's projection and field from its ledger. */
+  async reconcileField(): Promise<ReconcileResult> {
+    if (!invokeRemote) throw new Error('Fixture mode: reconciling needs the Forge bridge.');
+    return (await invokeRemote('relay.field.reconcile')) as ReconcileResult;
   },
 
   async enforcementCheck(key: string): Promise<EnforcementCheck> {
@@ -246,6 +301,7 @@ export const api = {
       ledgerRev: null,
       projection: issue.closure.projection.value,
       field: null,
+      fieldInfo: store.integrations.enforcement.field ?? null,
       syncError: null,
       diagnostics: [{
         level: 'info', code: 'fixture_mode',

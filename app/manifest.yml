@@ -10,6 +10,20 @@
 #     onto the issue. It cannot call Relay, and it cannot say why.
 
 modules:
+  # The closure field. Declared here so the app owns it: Forge creates a single
+  # locked field instance at deploy time, read-only for users and for the Edit
+  # Issue API. The app writes it through
+  # PUT /rest/api/3/app/field/{fieldIdOrKey}/value, which only the owning app can
+  # call. Its type id is
+  #   ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/relay-closure-count
+  # and Relay derives that from the invocation context rather than being told.
+  jira:customField:
+    - key: relay-closure-count
+      name: Relay open commitments
+      description: Relay's internal closure projection: the number of unresolved commitments on this issue. Read-only, written only by Relay. A workflow condition reads it to withhold closure.
+      type: number
+      readOnly: true
+
   jira:globalPage:
     - key: relay-workspace
       title: Relay
@@ -32,17 +46,20 @@ modules:
       projectTypes:
         - company-managed
 
-  # Customer portal coverage. Jira expressions can read a custom field but not
-  # an app's entity properties, so the condition reads the NUMERIC FIELD Relay
-  # keeps in step with the ledger. Field ids are site-specific: create the field,
-  # then replace customfield_10077 below and set the same id in Relay's Settings
-  # before deploying. A field that does not exist makes the expression fail,
-  # which Jira treats as false — closed to customers, never silently open.
+  # Customer portal coverage.
+  #
+  # The condition reads the app's own read-only number field (jira:customField
+  # below). The field id Jira assigns is generated per app and environment, so
+  # the expression cannot be written at build time. Relay resolves the id at
+  # runtime (relay.field.resolve), and the console prints the exact line to put
+  # here. Until it is replaced, the expression names a field that does not
+  # exist: Jira treats an expression error as false, so every state short of a
+  # confirmed zero refuses the transition.
   jira:workflowCondition:
     - key: relay-closure-condition
       name: Relay closure readiness
       description: Offers the closure transition only when Relay holds no unresolved commitments.
-      expression: "issue.customfield_10077 == 0"
+      expression: "issue.customfield_relay_closure_count == 0"
       projectTypes:
         - company-managed
 
@@ -63,6 +80,9 @@ permissions:
     - write:jira-work
     # The person picker and assignable-user search are read:jira-user.
     - read:jira-user
+    # Writing the app's own read-only field. Documented as optional today and
+    # planned to become required for the private app-field API.
+    - write:app-data:jira
 
 app:
   id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000

@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { createHandlers } from '../src/handlers.js';
+import { CLOSURE_FIELD_MODULE_KEY, CLOSURE_FIELD_PLACEHOLDER } from '../src/field.js';
+import { createJira } from '../src/jira.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = join(here, '..');
@@ -81,7 +83,7 @@ test('the resource path matches where the UI build writes', () => {
 
 test('declared scopes cover every Jira call the code makes', () => {
   const scopes = [...manifest.matchAll(/^\s+- ([\w:-]+)$/gm)].map((m) => m[1]);
-  for (const needed of ['storage:app', 'read:jira-work', 'write:jira-work', 'read:jira-user']) {
+  for (const needed of ['storage:app', 'read:jira-work', 'write:jira-work', 'read:jira-user', 'write:app-data:jira']) {
     assert.ok(scopes.includes(needed), `manifest is missing scope ${needed}`);
   }
 });
@@ -96,16 +98,40 @@ test('the app id in the manifest is still a placeholder', () => {
   );
 });
 
-test('the workflow condition reads a custom field, not an entity property', () => {
-  const expression = manifest.match(/expression: "([^"]+)"/)?.[1];
-  assert.ok(expression, 'the condition needs an expression');
-  // Jira expressions expose custom fields as issue.customfield_NNNNN; app
-  // entity properties are not part of the expression context.
-  assert.match(expression, /^issue\.customfield_\d+ == 0$/);
-  assert.ok(!/properties\[/.test(expression), 'Jira expressions cannot read entity properties');
+test('the app declares its own read-only number field', () => {
+  assert.match(manifest, /^\s+jira:customField:$/m, 'the field must be declared as a jira:customField module');
+  const block = manifest.slice(manifest.indexOf('jira:customField:'), manifest.indexOf('jira:globalPage:'));
+  assert.match(block, new RegExp(`\\s+- key: ${CLOSURE_FIELD_MODULE_KEY}\\n`), 'the module key is the field identity');
+  assert.match(block, /\n\s+name: .+\n/);
+  assert.match(block, /\n\s+description: .+/);
+  assert.match(block, /\n\s+type: number\n/);
+  assert.match(block, /\n\s+readOnly: true\n/, 'users and the Edit Issue API must not be able to write it');
+  assert.match(block, /Read-only|read-only/, 'the description must say the field is Relay’s and read-only');
 });
 
-test('the condition field id is site-specific and documented as such', () => {
-  assert.match(manifest, /replace customfield_\d+/, 'the manifest must say the field id is replaced at deploy time');
-  assert.match(read('ui/src/lib/api.ts'), /openFieldId/);
+test('the condition expression names the app field, by the placeholder until the id is resolved', () => {
+  const expression = manifest.match(/expression: "([^"]+)"/)?.[1];
+  assert.ok(expression, 'the condition needs an expression');
+  assert.equal(
+    `customfield_${CLOSURE_FIELD_MODULE_KEY.replace(/-/g, '_')}`,
+    CLOSURE_FIELD_PLACEHOLDER,
+    'the manifest placeholder is derived from the module key',
+  );
+  // Either the placeholder (before the app has resolved the id) or the real id.
+  // Never a field somebody created by hand: that is what P2.1 removed.
+  assert.match(expression, /^issue\.(customfield_\d+|customfield_relay_closure_count) == 0$/);
+  assert.ok(!/properties\[/.test(expression), 'the condition reads the field, not an entity property');
+  assert.match(manifest, /relay\.field\.resolve/, 'the manifest must say how the id is obtained');
+});
+
+test('the field is written through the private app-field API and never through Edit Issue', () => {
+  const api = createJira({
+    requestJira: async () => ({ ok: true, status: 204, json: async () => ({}), text: async () => '' }),
+    route: (strings, ...values) => strings.reduce((acc, part, i) => acc + part + (values[i] ?? ''), ''),
+  });
+  assert.equal(typeof api.writeAppFieldValue, 'function');
+  assert.equal('writeField' in api, false, 'the Edit Issue write path must not exist');
+  const src = read('src/jira.js');
+  assert.match(src, /\/rest\/api\/3\/app\/field\/\$\{fieldIdOrKey\}\/value/);
+  assert.match(src, /'PUT'|method: 'PUT'/);
 });

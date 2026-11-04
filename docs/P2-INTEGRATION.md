@@ -1,5 +1,12 @@
 # Relay Phase 2 — real Jira integration
 
+**Phase 2.1 supersedes parts of this document.** The closure condition no longer
+reads a hand-made Number field: the app declares its own read-only
+`jira:customField`, writes it through the private app-field API, and resolves its
+identifier at runtime. See `docs/P2.1-RUNBOOK.md` for deployment and §10 below
+for what changed and what it costs. §3, §5, §7 and §8 have been corrected in
+place where they were wrong.
+
 Status of this document: written at commit time on branch `arena/06fd2e30-codegeist2026`.
 Nothing in it describes a deployment that happened here. The sandbox cannot reach
 Atlassian, so the app in this repository has **never been deployed from this environment**.
@@ -87,17 +94,20 @@ Two hard rules, both covered by tests:
   appends to `relay:audit:{key}`, and stores `digestOf()` of the canonical content.
 - **Projection** (`issue.properties['relay.closure']`) is what the workflow
   *condition* reads. It is derived; it is never the thing that decides.
-- **Condition field** (`customfield_…`, configured per site) mirrors `open` so a
-  Jira expression can read it.
+- **Closure field** (an app-owned, read-only `jira:customField` of type `number`)
+  mirrors `open` so a Jira expression can read it. Only the owning app can write
+  it, through `PUT /rest/api/3/app/field/{fieldIdOrKey}/value`; a 204 is not
+  proof, so every write is read back and compared.
 - **Validator** (`createClosureValidator`) reads the ledger at transition time and
   can explain itself.
 
 Write order for any mutation that could increase `open`:
 
 ```
-1. guard projection   (only if planned open > 0 and not already blocking)
+1. guard: projection AND the app field both written to the planned open count
+          (only if either reader does not already say > 0)
 2. ledger write       (rev + digest read-back verification)
-3. projection + condition field
+3. projection + app field, both verified by reading them back
 ```
 
 A failure at step 1 aborts the mutation. A failure at step 3 leaves the guard in
@@ -161,8 +171,12 @@ Recorded in `phase0/`; not re-run here (no network).
 
 | Item | Why it is inferred |
 | --- | --- |
-| Jira expressions expose a custom field as `issue.customfield_NNNNN` | True for Jira expressions generally; the condition doc's own example only shows `issue.assignee` |
-| Entity properties are **not** in the expression context (hence the numeric field) | Not contradicted by the docs; not demonstrated either |
+| Jira expressions expose a custom field by id (`issue.customfield_NNNNN`) and by key (`issue['com.example.key']`) | Jira expressions type reference, "Issue" — corrected in P2.1; Phase 2 called this inferred |
+| Entity properties **are** in the expression context (`issue.properties`) | Jira expressions type reference lists `properties` on `Issue`. **This corrects Phase 2**, which assumed the opposite. The field-based condition is kept by design; the property path is untested in a workflow condition |
+| A workflow-condition expression is static and cannot resolve a field at evaluation time | Forge manifest reference: `expression` is a manifest string. Hence the resolved-id step |
+| Read-only app fields are not rendered on issue create, transition or portal request screens | Forge manifest reference, "Read-only fields" |
+| A field hidden in the active field configuration reads as `null` in Jira expressions | Jira expressions type reference — the reason Step 5 of the runbook exists |
+| `PUT /rest/api/3/app/field/{fieldIdOrKey}/value` returns 204 and only the owning app may call it; `write:app-data:jira` is documented as optional today and planned to become mandatory | REST v3, "Issue custom field values (apps)" |
 | `/rest/api/3/search/jql` exists on this site | `search/jql` is the current endpoint; the site's behaviour was never called |
 | `read:jira-user` is the scope behind the person picker | Matches the REST scope table; install-time consent not observed |
 | `projectTypes: [company-managed]` accepts a JSM project | JSM service projects are company-managed; not exercised by `forge deploy` |
@@ -171,7 +185,15 @@ Recorded in `phase0/`; not re-run here (no network).
 
 - Every resolver in this build: `relay.*` was executed only against `test/support/fake-forge.js`.
 - KVS behaviour under real latency, eventual consistency, and concurrent invocations.
-- Issue property writes and the condition field write on a real issue.
+- Issue property writes and app-field writes on a real issue.
+- That Jira resolves `schema.custom` for a deployed `jira:customField` to the
+  module id Relay computes from `localId` (the lookup is exact-match on that id).
+- The six expression states against a real site (zero, positive, missing field,
+  null field, invalid value, expression failure). They are mirrored in JS and
+  tested there; only Jira evaluates the real expression.
+- Whether a read-only app field can be read by a workflow condition in a JSM
+  project when it is not on the portal screens — the runbook adds it to a screen
+  precisely because this is unproven.
 - ADF→text projection against real JSM comment bodies (including mentions, inline
   cards, and truncated `body` when `maxResults` paginates).
 - Comment pagination beyond the first page.
@@ -196,18 +218,19 @@ BLOCKED is not PASS.
 
 ```
 cd app && npm test
-# tests 71, pass 71, fail 0
+# tests 99, pass 99, fail 0
 
 cd app/ui && npx tsc --noEmit      # clean
 cd app/ui && npm run check:render  # 6 screens, all expected content, no forbidden values
 cd app/ui && npx vite build        # emits app/static/relay (gitignored)
 ```
 
-What the 71 tests cover: ADF projection and anchoring (7), storage semantics
-including lock/digest/concurrency (8), resolver behaviour against a simulated Jira
-(12), the end-to-end slice and rejection path (2), plus the pre-existing ledger,
-gate, projection, sync, workflow and audit suites (42), and manifest/console
-contract checks (8).
+What the 99 tests cover: field identity and the six expression states, field
+resolution, the private write path, read-back verification, guard ordering and
+reconciliation (28), ADF projection and anchoring (7), storage semantics including
+lock/digest/concurrency (8), resolver behaviour against a simulated Jira (12), the
+end-to-end slice and rejection path (2), the pre-existing ledger, gate, projection,
+sync, workflow and audit suites (33), and manifest/console contract checks (9).
 
 The slice test (`app/test/slice.test.js`) walks the twelve live steps as far as a
 simulator can: load → scan → accept → reload from the same storage → workspace →
@@ -224,10 +247,19 @@ reachable from Relay's own code and is **not** claimed.
    "blocked", never "silently open", and reports diagnostics when the layers
    disagree. It does not claim the write is atomic.
 2. **The lock is advisory.** Detection, not exclusion (§3).
-3. **The condition field id is site configuration.** Jira expressions cannot read
-   app entity properties, so a numeric field must exist and its id must be set in
-   both `manifest.yml` and Relay's Settings. A field id that does not exist makes
-   the expression fail, which Jira treats as false — closed to customers.
+3. **The expression is static; the field id is not.** A Jira expression is a
+   manifest string, evaluated by Jira with no way to look up a field at
+   evaluation time. Relay resolves the id, prints the exact line, and refuses to
+   guess — but one paste-and-redeploy remains (runbook Steps 3–4). Until it is
+   done, the expression names a field that does not exist, which Jira treats as
+   false: closed to customers, never silently open.
+4. **A hidden field is null inside the condition.** If the app field is not in
+   the project's active field configuration, the expression sees `null` and
+   refuses everyone. That is fail-closed and indistinguishable from a real
+   refusal, which is why the runbook makes adding it to a screen a prerequisite.
+5. **`write:app-data:jira` is declared but currently optional** according to the
+   REST docs. Relay declares it now so the day it becomes mandatory is not an
+   outage.
 4. **An unreviewed candidate fails closed.** A machine-suggested candidate holds
    closure until a person accepts or rejects it; the refusal names it as "still
    awaiting review". This is deliberate: the extractor must not be able to open a
@@ -243,6 +275,9 @@ reachable from Relay's own code and is **not** claimed.
 ---
 
 ## 8. Deploying it yourself — exact commands
+
+> **Superseded by `docs/P2.1-RUNBOOK.md`.** The steps below describe the Phase 2
+> hand-made field and must not be followed for P2.1. They remain for history.
 
 Prerequisite: Node ≥ 22, and your own already-authenticated Forge CLI. Run from the
 repository root. Nothing here needs a token pasted anywhere.
@@ -285,6 +320,10 @@ protects agents and the API only.
 
 ## 9. Files changed in this phase
 
+Phase 2.1 adds `app/src/field.js`, `app/test/field.test.js` and
+`docs/P2.1-RUNBOOK.md`, and changes the manifest, `sync.js`, `handlers.js`,
+`workspace.js`, `store.js`, `jira.js` and the Settings screen. §10 below.
+
 New: `app/src/{adf,extract,jira,store,workspace,handlers}.js`,
 `app/test/{extract,store,handlers,slice,contract}.test.js`,
 `app/test/support/fake-forge.js`, this document.
@@ -296,3 +335,153 @@ Modified: `app/src/ledger.js` (helpers), `app/src/projection.js` (guard is stale
 `read:jira-user`, `external` removed), `app/ui/src/App.tsx` (scan wiring, bridge
 error state), `app/ui/src/lib/{api,types,format}.ts`, `app/ui/src/screens/{CaseWorkspace,Overview,Settings,types}.tsx`,
 `app/ui/src/styles/screens.css`.
+
+
+---
+
+## 10. Phase 2.1 — the app-owned closure field
+
+### 10.1 What the app declares
+
+```yaml
+modules:
+  jira:customField:
+    - key: relay-closure-count
+      name: Relay open commitments
+      description: Relay's internal closure projection: the number of unresolved
+        commitments on this issue. Read-only, written only by Relay. A workflow
+        condition reads it to withhold closure.
+      type: number
+      readOnly: true
+```
+
+One locked field instance is created per app and environment at deploy time
+("Field lifecycle", Forge manifest reference). It is read-only for users and for
+the Edit Issue API, and it disappears when the app is uninstalled.
+
+The manifest does **not** declare a `resolver` for the field. The property table
+says `resolver` is required, but the same page's own manifest example omits it,
+and a static read-only field has no value function or edit experience to resolve.
+`forge lint` would settle it, and it cannot run here (**BLOCKED**). If lint
+complains, the fix is one line — `resolver: { function: relay-field-resolver }` —
+and `relay-field-resolver` does not exist yet, so the field block would need a
+function module too. This is recorded as the one schema ambiguity in the change.
+
+### 10.2 How the identifier is obtained
+
+| Step | Mechanism |
+| --- | --- |
+| Type id | Derived from the invocation context: `context.localId` is `ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/{invoked-module}`; Relay keeps the app and environment segments and appends `/static/relay-closure-count` |
+| Numeric id | `GET /rest/api/3/field`, matched **exactly** on `schema.custom === typeId` (Forge documents that field as the module id) |
+| Cache | `relay:settings` stores `closureFieldId`, `closureFieldKey`, `closureFieldTypeId`, `closureFieldResolvedAt` |
+| Invalidation | A different `typeId` (another environment) discards the cache and looks the field up again, so an app promoted from development to production never writes into the previous environment's field |
+| Failure | No match, no `localId` and no cache ⇒ `resolved: false`. Nothing is written; `relay.enforcement.check` reports `closure_field_unresolved`. **Unresolved is never reported as 0** |
+
+The console renders this at Settings → Enforcement → Closure field, with a copy
+button for the exact manifest line. `relay.field.resolve` returns the same data.
+
+### 10.3 How the value is written
+
+```
+PUT /rest/api/3/app/field/{fieldIdOrKey}/value
+{ "updates": [ { "issueIds": [ 10042 ], "value": 1 } ] }
+```
+
+- `issueIds` are numeric Jira issue ids, so the write fetches the issue and uses
+  its `id` — a key is not enough.
+- The call is made as the app (`api.asApp().requestJira`).
+- Errors are typed (`AppFieldError`) with the reason mapped: `403`
+  `not_field_owner_or_missing_scope`, `404` `field_not_found`, `400`
+  `value_rejected`, `5xx` `jira_unavailable`, `429` `rate_limited`. None of them
+  is retried as if it were success, and none is read as a zero.
+- **A 204 is not proof.** After every write the value is read back through
+  `GET /rest/api/3/issue/{key}?fields={fieldId}` and compared with the ledger. A
+  mismatch throws `field_write_unverified` and becomes a diagnostic; the guard
+  path throws `guard_field_write_unverified` and aborts the mutation instead.
+- The Edit Issue API path (`writeField`) was **removed**. The contract test fails
+  if it comes back.
+
+### 10.4 Scopes
+
+| Scope | Used for |
+| --- | --- |
+| `storage:app` | ledger, audit, settings |
+| `read:jira-work` | issues, comments, field reads, field search |
+| `write:jira-work` | issue properties (the projection) |
+| `read:jira-user` | person picker / assignable users |
+| `write:app-data:jira` | the private app-field write; documented as optional today and planned to become mandatory |
+
+### 10.5 The condition and what backs each claim
+
+The expression Relay prints is:
+
+```
+issue.customfield_NNNNN == 0
+```
+
+| State | What the expression returns | Effect |
+| --- | --- | --- |
+| `0` — zero unresolved | `true` | transition offered |
+| `1` or more | `false` | transition withheld |
+| field missing (wrong id, module not deployed) | evaluation error | Jira treats an error as `false` — withheld |
+| field `null` (never written, or hidden by field configuration) | `false` | withheld |
+| invalid value (`"0"`, object, negative) | `false` | withheld |
+| expression evaluation failure | `false` | withheld |
+
+**DOCUMENTATION VERIFIED**: expressions are fail-closed on error and on
+non-boolean results; `issue.<customfield id>` is the documented access form;
+hidden fields read as `null`; read-only fields are not rendered on create,
+transition or portal screens.
+
+**NOT TESTED**: everything about how Jira actually behaves on this site. The six
+states above are mirrored in `evaluateClosureValue()` and covered by tests, but a
+mirror is not Jira. In particular, whether a read-only app field can be read by a
+workflow condition in a JSM project when it is absent from the portal screens is
+**not proven** — which is why the runbook adds it to a screen first.
+
+**Corrected from Phase 2**: `issue.properties` *is* documented on the Jira
+expressions `Issue` type, so Phase 2's "expressions cannot read entity
+properties" was wrong. The field-based condition is kept because the brief
+requires an app-owned field, not because the property path is unavailable.
+
+### 10.6 Consistency tests added
+
+`app/test/field.test.js` proves, against the simulated site:
+
+- the type id is derived from the app and environment, not from the invoked module;
+- the id is discovered once and cached, and re-resolved when the environment changes;
+- an unresolved field writes nothing and is never reported as zero;
+- writes go through the private API with the numeric issue id, never Edit Issue;
+- a refused write stops the mutation before the ledger moves;
+- a 204 that did not change the value is caught by read-back;
+- a Jira failure during reconciliation is reported as a failed case, not a success;
+- the ledger and the field agree after scan, accept, verify and drop;
+- a missing field is repaired from the ledger, including the initial zero;
+- a stale field does not open the gate, and reconciliation repairs it;
+- duplicate decisions do not write the field twice;
+- two concurrent decisions leave the field equal to the ledger;
+- the field is written **before** the ledger whenever the count is about to rise;
+- reconciliation reports partial repairs as partial;
+- sync does not rewrite a field that already matches.
+
+One defect was found and fixed by these tests: `relay.capture.scan` previously
+increased the unresolved count (a suggestion counts as unresolved) without
+writing the projection or field, so the portal could have read "zero" while a
+candidate awaited review. The scan now goes through the same guard ordering as
+every other mutation, and `syncIssue` treats a field that disagrees with the
+ledger as stale even when the projection is fresh.
+
+### 10.7 Remaining manual actions
+
+1. Register the app once, with its own identity (`npx @forge register`; do not commit the id).
+2. Deploy and install (`npx @forge deploy`, `npx @forge install --site … --product jira`).
+3. Read the resolved field id from Settings → Enforcement → Closure field.
+4. Paste the printed expression into `manifest.yml` and deploy again.
+5. Add the field to the project's screens.
+6. Reconcile every tracked case.
+7. Attach **Relay closure gate** (validator) and **Relay closure readiness**
+   (condition) to the closure transition.
+8. Walk the twelve steps, including the portal, with the condition attached.
+9. Press **Record as deployed** so the console stops warning about the manifest.
+
+Everything in this list requires Atlassian access this environment does not have.

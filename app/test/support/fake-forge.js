@@ -30,15 +30,46 @@ export function createMemoryStorage({ dropWrites = 0, dropOn = (key) => key.star
 
 import { normaliseComment, normaliseIssue } from '../../src/jira.js';
 
-export function createFakeJira({ issue, comments = [], people = [], failProjection = false }) {
+/** The app + environment segments of a module id, as Forge builds them. */
+export const APP_ID = '11111111-2222-3333-4444-555555555555';
+export const ENV_ID = '99999999-8888-7777-6666-555555555555';
+export const MODULE_TYPE_PREFIX = `ari:cloud:ecosystem::extension/${APP_ID}/${ENV_ID}/static`;
+
+/** A resolver context shaped like Forge's, including `localId`. */
+export const forgeContext = (overrides = {}) => ({
+  accountId: 'acc-maya',
+  account: { displayName: 'Maya Okafor' },
+  siteUrl: 'https://onepes930.atlassian.net',
+  localId: `${MODULE_TYPE_PREFIX}/relay-workspace`,
+  ...overrides,
+});
+
+export function createFakeJira({
+  issue,
+  comments = [],
+  people = [],
+  failProjection = false,
+  fieldId = 'customfield_90001',
+  fieldPresent = true,
+}) {
   const properties = new Map();
-  const field = { value: null };
+  // The app-owned field: one value, plus enough recording to prove how it was
+  // written. `ignored` simulates Jira accepting a write (204) that does not
+  // change the stored value — the case read-back verification exists for.
+  const field = { value: null, writes: [], issueIds: [], accepted: 0 };
   const calls = [];
-  const state = { failProjection: Boolean(failProjection), failField: false, failProjectionAfter: null, projectionWrites: 0 };
+  const state = {
+    failProjection: Boolean(failProjection),
+    failField: false,
+    fieldIgnored: false,
+    failFieldRead: false,
+    fieldPresent,
+    failProjectionAfter: null,
+    projectionWrites: 0,
+  };
 
   const requireOk = (label) => {
     if (label === 'projection' && state.failProjection) throw new Error('jira 500 on issue properties');
-    if (label === 'field' && state.failField) throw new Error('jira 400 on issue update');
   };
 
   return {
@@ -73,13 +104,54 @@ export function createFakeJira({ issue, comments = [], people = [], failProjecti
         properties.set(key, structuredClone(value));
         return true;
       },
-      async writeField(key, fieldId, value) {
-        calls.push(['writeField', key, fieldId, value]);
-        requireOk('field');
-        field.value = value;
-        return true;
+      async listFields() {
+        calls.push(['listFields']);
+        if (!state.fieldPresent) return [];
+        return [
+          { id: 'customfield_10000', name: 'Story Points', schema: { type: 'number', custom: 'com.pyxis.greenhopper.jira:story-points' } },
+          { id: fieldId, name: 'Relay open commitments', schema: { type: 'number', custom: `${MODULE_TYPE_PREFIX}/relay-closure-count` } },
+        ];
       },
-      async readField() {
+      async findFieldByModuleType(typeId) {
+        calls.push(['findFieldByModuleType', typeId]);
+        if (!state.fieldPresent) return null;
+        // The real lookup matches `schema.custom` exactly. The fake stands in
+        // for a site where the manifest's field exists, so it echoes the type id
+        // it was asked about — including a different environment's.
+        if (!String(typeId ?? '').endsWith('/relay-closure-count')) return null;
+        return {
+          id: fieldId,
+          key: `${typeId}__TEST__relay-closure-count`,
+          name: 'Relay open commitments',
+          typeId,
+        };
+      },
+      /**
+       * The private app-field API. Stands in for
+       * PUT /rest/api/3/app/field/{fieldIdOrKey}/value.
+       */
+      async writeAppFieldValue(idOrKey, issueId, value) {
+        calls.push(['writeAppFieldValue', idOrKey, issueId, value]);
+        if (state.failField) {
+          const status = typeof state.failField === 'number' ? state.failField : 403;
+          const err = new Error(`app field ${idOrKey}: ${status} (simulated)`);
+          err.name = 'AppFieldError';
+          err.status = status;
+          throw err;
+        }
+        // The real API takes numeric issue ids; `createJira` converts before it
+        // sends, so the fake records what Jira would receive.
+        field.issueIds.push(Number(issueId));
+        field.writes.push({ fieldId: idOrKey, issueId: Number(issueId), value });
+        field.accepted += 1;
+        if (state.fieldIgnored) return { status: 204, accepted: true };
+        field.value = value;
+        return { status: 204, accepted: true };
+      },
+      async readField(key, fieldIdArg) {
+        calls.push(['readField', key, fieldIdArg]);
+        if (state.failFieldRead) throw new Error('jira 503 on issue field');
+        if (!state.fieldPresent) return null;
         return field.value;
       },
       async searchPeople() {

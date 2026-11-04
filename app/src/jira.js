@@ -16,6 +16,29 @@
  */
 import { commentBodyToText } from './adf.js';
 
+/**
+ * A failure from the private app-field API. Kept separate from JiraError
+ * because the failure modes are the ones that decide whether enforcement holds:
+ * a 403 means Relay is not the owner of the field (or the scope is missing), a
+ * 404 means the field is gone, a 5xx means Jira could not answer. None of them
+ * may be read as "zero open commitments".
+ */
+export class AppFieldError extends Error {
+  constructor(fieldId, status, detail) {
+    super(`app field ${fieldId}: ${status}${detail ? ` (${detail})` : ''}`);
+    this.name = 'AppFieldError';
+    this.fieldId = fieldId;
+    this.status = status;
+    this.reason = status === 400 ? 'value_rejected'
+      : status === 401 ? 'app_not_authenticated'
+        : status === 403 ? 'not_field_owner_or_missing_scope'
+          : status === 404 ? 'field_not_found'
+            : status === 429 ? 'rate_limited'
+              : status >= 500 ? 'jira_unavailable'
+                : 'unknown';
+  }
+}
+
 export class JiraError extends Error {
   constructor(path, status, detail) {
     super(`jira ${status} on ${path}${detail ? `: ${detail}` : ''}`);
@@ -112,14 +135,56 @@ export function createJira({ requestJira, route, log = () => {} }) {
     return true;
   }
 
-  async function writeField(issueKey, fieldId, value) {
-    const res = await call(route`/rest/api/3/issue/${issueKey}`, {
+  /**
+   * Every field Jira knows about, used to resolve the app's own field by the
+   * type id Forge derives from the manifest. Read once per resolution and
+   * cached by the caller, not per mutation.
+   */
+  async function listFields() {
+    const data = await readJson(route`/rest/api/3/field`);
+    return Array.isArray(data) ? data : [];
+  }
+
+  /**
+   * Find the app-owned closure field. The match is exact on `schema.custom`,
+   * which Forge documents as the module's full id
+   * (`ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/{moduleKey}`).
+   * A near match is not accepted: a wrong field would be written into and read
+   * from as if it were Relay's.
+   */
+  async function findFieldByModuleType(typeId) {
+    if (!typeId) return null;
+    const fields = await listFields();
+    const hit = fields.find((f) => f?.schema?.custom === typeId);
+    if (!hit) return null;
+    return { id: hit.id ?? null, key: hit.key ?? null, name: hit.name ?? null, typeId };
+  }
+
+  /**
+   * Write an app-owned custom field value.
+   *
+   * `PUT /rest/api/3/app/field/{fieldIdOrKey}/value` is the only supported way
+   * to write a read-only field: the Edit Issue API is documented not to work on
+   * read-only fields, and a field written that way would either fail or, worse,
+   * be writable by anyone. A 204 here means Jira accepted the request. It is
+   * not proof of what the field now holds — the caller reads back.
+   */
+  async function writeAppFieldValue(fieldIdOrKey, issueId, value) {
+    if (!fieldIdOrKey) throw new AppFieldError(String(fieldIdOrKey), 0, 'no field id');
+    if (issueId === null || issueId === undefined) {
+      throw new AppFieldError(String(fieldIdOrKey), 0, 'no issue id');
+    }
+    const res = await call(route`/rest/api/3/app/field/${fieldIdOrKey}/value`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { [fieldId]: value } }),
+      body: JSON.stringify({ updates: [{ issueIds: [Number(issueId)], value }] }),
     });
-    if (!res.ok) throw new JiraError(`issue/${issueKey}`, res.status);
-    return true;
+    if (res.status !== 204 && !res.ok) {
+      let detail = '';
+      try { detail = (await res.text()).slice(0, 200); } catch { /* consumed */ }
+      throw new AppFieldError(String(fieldIdOrKey), res.status, detail || res.statusText);
+    }
+    return { status: res.status, accepted: true };
   }
 
   async function readField(issueKey, fieldId) {
@@ -151,7 +216,11 @@ export function createJira({ requestJira, route, log = () => {} }) {
     }
   }
 
-  return { getIssue, getComments, searchIssueKeys, readProperty, writeProperty, writeField, readField, myself, searchPeople };
+  return {
+    getIssue, getComments, searchIssueKeys, readProperty, writeProperty,
+    listFields, findFieldByModuleType, writeAppFieldValue, readField,
+    myself, searchPeople,
+  };
 }
 
 export function normaliseIssue(data) {

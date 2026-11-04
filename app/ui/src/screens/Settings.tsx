@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { DataMode, Workspace } from '../lib/types';
-import { api, type EnforcementCheck } from '../lib/api';
+import { api, type EnforcementCheck, type FieldResolution } from '../lib/api';
 import { Button, Notice, OwnerStamp, Stamp, Switch } from '../components/primitives';
 import { Icon } from '../components/Icons';
 import { timeAgo } from '../lib/format';
@@ -11,7 +11,7 @@ type Section = typeof sections[number];
 export function Settings({ workspace, onChange, toast, mode }: {
   workspace: Workspace;
   onChange: (w: Workspace) => void;
-  toast: (m: string) => void;
+  toast: (m: string, tone?: 'default' | 'verified' | 'overdue') => void;
   mode?: DataMode;
 }) {
   const [section, setSection] = useState<Section>('Workspace');
@@ -20,7 +20,11 @@ export function Settings({ workspace, onChange, toast, mode }: {
   const [threshold, setThreshold] = useState(workspace.integrations.capture.confidenceThreshold);
   const [requireOwner, setRequireOwner] = useState(workspace.integrations.capture.requireOwner);
   const [trackKey, setTrackKey] = useState('');
-  const [fieldId, setFieldId] = useState(workspace.integrations.enforcement.openFieldId ?? '');
+  const closureField = workspace.integrations.enforcement.field ?? null;
+  const [fieldLive, setFieldLive] = useState<FieldResolution | null>(null);
+  // Live resolution when we have it, otherwise the snapshot the workspace was
+  // built from. Absent is absent: null, not a made-up field id.
+  const fieldView = fieldLive?.field ?? closureField ?? null;
   const [check, setCheck] = useState<EnforcementCheck | null>(null);
   // Registration is not observable from inside an app: settings only ever
   // report what Relay declared in its manifest, never what a workflow does.
@@ -28,6 +32,17 @@ export function Settings({ workspace, onChange, toast, mode }: {
   const [busy, setBusy] = useState(false);
   const { capture, enforcement, jira } = workspace.integrations;
   const firstIssue = workspace.issues[0]?.key;
+
+  useEffect(() => {
+    if (mode !== 'live') return;
+    let cancelled = false;
+    // Ask the app what its field is *now*, rather than trusting a cached copy
+    // in the workspace snapshot.
+    api.resolveField()
+      .then((res) => { if (!cancelled) setFieldLive(res); })
+      .catch(() => { /* the workspace snapshot still shows the last known state */ });
+    return () => { cancelled = true; };
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== 'live') return;
@@ -211,48 +226,115 @@ export function Settings({ workspace, onChange, toast, mode }: {
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Condition expression</div>
-                    <div className="setting__desc">Evaluated by Jira, not by Relay. It can withhold a transition; it cannot explain one.</div>
+                    <div className="setting__title">Closure field</div>
+                    <div className="setting__desc">
+                      Relay’s own read-only number field, created with the app. The condition reads it; only Relay can write it.
+                    </div>
+                    <div className="setting__meta">
+                      <span className="mono">{fieldView?.id ?? 'not resolved'}</span>
+                      {fieldView?.key ? <span className="mono setting__meta-ellipsis" title={fieldView.key}>{fieldView.key}</span> : null}
+                    </div>
                   </div>
-                  <div className="setting__control"><div className="proj">{enforcement.conditionExpression}</div></div>
+                  <div className="setting__control">
+                    <Stamp tone={fieldView?.resolved ? 'verified' : 'open'}>
+                      {fieldView?.resolved ? 'Resolved' : 'Not resolved'}
+                    </Stamp>
+                    {!fieldView?.resolved && (
+                      <p className="setting__note">
+                        The field is created when the app is deployed and installed. Until Jira returns its id, the condition has nothing to read, and Relay writes nothing rather than guessing.
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Condition field</div>
+                    <div className="setting__title">Condition expression</div>
                     <div className="setting__desc">
-                      The numeric custom field the condition reads. Site-specific, so it is configuration, not code.
+                      The field id is generated per app and environment, so this line is copied into <span className="mono">manifest.yml</span> once, after the first install, then deployed again.
+                    </div>
+                    <div className="setting__meta">
+                      <span className="mono">{fieldView?.expression ?? enforcement.conditionExpression}</span>
                     </div>
                   </div>
                   <div className="setting__control" style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      className="input"
-                      placeholder="customfield_10077"
-                      value={fieldId}
-                      onChange={(e) => setFieldId(e.target.value.trim())}
-                      aria-label="Condition field id"
-                    />
                     <Button
-                      disabled={mode !== 'live' || busy || fieldId === (enforcement.openFieldId ?? '')}
+                      size="sm"
+                      disabled={!fieldView?.resolved}
+                      onClick={async () => {
+                        const line = fieldView?.manifestLine;
+                        if (!line) return;
+                        try {
+                          await navigator.clipboard.writeText(line);
+                          toast('Manifest line copied.');
+                        } catch {
+                          toast('Copy failed — select the line above instead.', 'overdue');
+                        }
+                      }}
+                    >
+                      Copy line
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={mode !== 'live' || busy || !fieldView?.resolved}
                       onClick={async () => {
                         setBusy(true);
                         try {
-                          await api.saveSettings({ openFieldId: fieldId || null });
-                          onChange({ ...workspace, integrations: { ...workspace.integrations, enforcement: { ...enforcement, openFieldId: fieldId || null } } });
-                          toast(fieldId ? 'Condition field saved.' : 'Condition field cleared.');
+                          const expression = fieldView?.expression ?? '';
+                          await api.saveSettings({ closureExpressionApplied: expression });
+                          onChange({
+                            ...workspace,
+                            integrations: {
+                              ...workspace.integrations,
+                              enforcement: { ...enforcement, expressionApplied: expression },
+                            },
+                          });
+                          toast('Recorded. Relay cannot verify a manifest from inside Jira — this is what you deployed.');
                         } catch (err) {
                           toast(err instanceof Error ? err.message : String(err));
                         } finally { setBusy(false); }
                       }}
                     >
-                      Save
+                      Record as deployed
                     </Button>
                   </div>
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Reconcile and check</div>
+                    <div className="setting__title">Reconcile every case</div>
                     <div className="setting__desc">
-                      Re-derives the projection from the ledger, then reports what the gate, the projection and the condition field each say.
+                      Re-derives each projection and field from its ledger. Run this before attaching the condition.
+                    </div>
+                  </div>
+                  <div className="setting__control">
+                    <Button
+                      icon="sync"
+                      disabled={mode !== 'live' || busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          const res = await api.reconcileField();
+                          const failed = res.failed.length;
+                          toast(
+                            failed
+                              ? `Repaired ${res.repaired}; ${failed} case${failed > 1 ? 's' : ''} could not be reconciled.`
+                              : `Reconciled ${res.repaired} case${res.repaired === 1 ? '' : 's'}; ${res.alreadyInStep} already in step.`,
+                            failed ? 'overdue' : 'verified',
+                          );
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : String(err));
+                        } finally { setBusy(false); }
+                      }}
+                    >
+                      Reconcile
+                    </Button>
+                  </div>
+                </div>
+                <div className="setting">
+                  <div>
+                    <div className="setting__title">Check one case</div>
+                    <div className="setting__desc">
+                      Reconciles a single case, then reports what the gate, the projection and the field each say — including when they disagree.
                     </div>
                   </div>
                   <div className="setting__control">

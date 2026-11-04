@@ -556,6 +556,23 @@
    ===================================================================== */
 
 .settings { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: clamp(20px, 3vw, 48px); align-items: start; }
+.setting__meta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.setting__meta-ellipsis {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .setting__note {
   font-size: 11.5px;
   line-height: 1.5;

@@ -91,6 +91,8 @@ export interface Issue {
   updatedAt: string;
   commitments: Commitment[];
   closure: ClosureState;
+  /** Diagnostics raised while producing this issue — a failed projection or field write shows here. */
+  diagnostics?: Diagnostic[];
 }
 
 export type ActivityType =
@@ -122,6 +124,23 @@ export interface Diagnostic {
   at?: string;
 }
 
+/**
+ * Relay's own read-only custom field. `id` is null until Jira has returned it:
+ * null means the condition cannot read anything yet, and is never a zero.
+ */
+export interface ClosureField {
+  moduleKey: string;
+  name: string;
+  typeId: string | null;
+  id: string | null;
+  key: string | null;
+  resolved: boolean;
+  resolvedAt: string | null;
+  expression: string;
+  manifestLine: string;
+  placeholder: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -145,7 +164,15 @@ export interface Workspace {
       customerTransitionsEnabled: boolean;
       portalNote: string;
       verification?: 'declared' | 'unverified';
-      openFieldId?: string | null;
+      /** The app-owned closure field, resolved for this app and environment. */
+      field?: ClosureField;
+      fieldId?: string | null;
+      fieldKey?: string | null;
+      fieldTypeId?: string | null;
+      fieldResolved?: boolean;
+      /** The line manifest.yml must contain once the field id is known. */
+      manifestLine?: string;
+      expressionApplied?: string | null;
     };
     capture: { autoCapture: boolean; confidenceThreshold: number; requireOwner: boolean };
   };

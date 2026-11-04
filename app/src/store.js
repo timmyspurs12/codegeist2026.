@@ -211,7 +211,16 @@ export function createStore({ storage, now = () => new Date(), log = () => {}, w
 
   async function settings() {
     const defaults = {
-      openFieldId: null,
+      // The app-owned closure field. `closureFieldTypeId` is recorded next to
+      // the numeric id so a promotion to another environment invalidates the
+      // cache instead of writing into the previous environment's field.
+      closureFieldId: null,
+      closureFieldKey: null,
+      closureFieldTypeId: null,
+      closureFieldResolvedAt: null,
+      // The expression the operator recorded as pasted into manifest.yml. Used
+      // only to warn that the deployed manifest may not match the field.
+      closureExpressionApplied: null,
       capture: { autoCapture: true, confidenceThreshold: 0.55, requireOwner: true },
       // Manifest declarations, not observations. Relay cannot read a workflow's
       // configuration from inside an app, so these stay false until an operator

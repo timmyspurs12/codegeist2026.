@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandlers } from '../src/handlers.js';
-import { createFakeJira, createMemoryStorage, rawIssue, rawComment } from './support/fake-forge.js';
+import { createFakeJira, createMemoryStorage, MODULE_TYPE_PREFIX, rawIssue, rawComment } from './support/fake-forge.js';
 
 const NOW = new Date('2026-11-04T09:00:00.000Z');
 const clock = () => NOW;
-const ctx = { accountId: 'acc-maya', account: { displayName: 'Maya Okafor' }, siteUrl: 'https://onepes930.atlassian.net' };
+const ctx = {
+  accountId: 'acc-maya',
+  account: { displayName: 'Maya Okafor' },
+  siteUrl: 'https://onepes930.atlassian.net',
+  // Forge passes the invoked module's own id. Relay derives its closure
+  // field's type id from this, so every handler test has to look like Forge.
+  localId: `${MODULE_TYPE_PREFIX}/relay-workspace`,
+};
 
 function build({ comments, failProjection = false } = {}) {
   const storage = createMemoryStorage();
@@ -107,9 +114,10 @@ test('accepting persists the commitment, its evidence and the decision, and bloc
   assert.equal(issue.closure.ready, false, 'an accepted commitment still blocks closure');
 
   const projection = fake.properties.get('FS-101');
-  assert.equal(projection.open, 1, 'the projection the condition reads says one open commitment');
-  assert.equal(fake.field.value, null, 'no condition field is configured, so no field write is attempted');
-  assert.equal(fake.calls.filter((c) => c[0] === 'writeField').length, 0);
+  assert.equal(projection.open, 1, 'the projection says one open commitment');
+  assert.equal(fake.field.value, 1, 'the app-owned field the condition reads says the same');
+  assert.deepEqual(fake.field.writes.at(-1).fieldId, 'customfield_90001');
+  assert.equal(fake.field.issueIds.at(-1), 10042, 'the private field API takes numeric issue ids');
 });
 
 test('accepting twice with the same owner and date is a no-op, not a second event', async () => {
@@ -184,21 +192,22 @@ test('a drop without a reason is refused; a drop with one settles the commitment
   assert.equal(dropped.closure.ready, true);
 });
 
-test('a guard write that fails aborts the mutation instead of saving a commitment the portal cannot see', async () => {
+test('a guard that cannot be written aborts the mutation, so no commitment exists without a projection', async () => {
   const { handlers, fake } = build({ failProjection: true });
   await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
 
+  // A suggestion counts as unresolved, so the scan raises the open count and
+  // must project it. The projection is down, so the scan aborts instead of
+  // leaving a case that the portal would read as clear.
   await assert.rejects(
-    () => handlers['relay.capture.accept']({
-      payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' } }, context: ctx,
-    }),
+    () => handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx }),
     /issue properties/,
   );
 
-  const issue = await handlers['relay.issue.get']({ payload: { key: 'FS-101' } });
-  assert.equal(issue.commitments[0].status, 'proposed', 'the ledger did not change');
+  const ledger = await handlers['relay.issue.get']({ payload: { key: 'FS-101' } });
+  assert.equal(ledger.commitments.length, 0, 'nothing was captured');
   assert.equal(fake.properties.has('FS-101'), false);
+  assert.equal(fake.field.value, null, 'and the field was never written either');
 });
 
 test('if the final projection write fails, the guard keeps the portal blocked and the console says so', async () => {
@@ -228,7 +237,13 @@ test('the enforcement check reports the projection, the field and the decision f
   assert.equal(blocked.code, 'blocked');
   assert.equal(blocked.counts.open, 1);
   assert.equal(blocked.projection.open, 1);
-  assert.ok(blocked.diagnostics.some((d) => d.code === 'condition_field_unset'));
+  assert.equal(blocked.fieldInfo.resolved, true, 'the app-owned field was resolved from the context');
+  assert.equal(blocked.fieldInfo.id, 'customfield_90001');
+  assert.equal(blocked.field, 1, 'the field holds the same count as the ledger');
+  assert.ok(
+    blocked.diagnostics.some((d) => d.code === 'condition_expression_placeholder'),
+    'the console warns that the manifest may still name the placeholder',
+  );
 
   await handlers['relay.capture.accept']({
     payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' } }, context: ctx,

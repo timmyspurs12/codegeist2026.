@@ -32,7 +32,7 @@ app/
                       workflow condition (portal coverage)
   src/                data access (jira.js), extraction, storage, ledger, projection,
                       gate, sync, audit, handlers, Forge binding (resolvers.js)
-  test/               71 tests — `npm test` (unit, handler, end-to-end slice, contract)
+  test/               99 tests — `npm test` (unit, handler, field, end-to-end slice, contract)
   ui/                 Custom UI (React + TS + Vite), own design system
   ui/src/screens/     Overview · Capture inbox · Case workspace · Activity · Settings
 docs/design/          design system + skill audit
@@ -52,8 +52,11 @@ Inside Forge it reads the real site; a failing bridge is an error screen, never 
 silent fall back to fixtures.
 
 **Phase 2 (real Jira integration)** — what was built, what is live-verified,
-documented-verified, inferred, untested or blocked, and the exact deploy steps:
-`docs/P2-INTEGRATION.md`.
+documented-verified, inferred, untested or blocked: `docs/P2-INTEGRATION.md`.
+
+**Phase 2.1 (app-owned closure field)** — the condition reads a read-only
+`jira:customField` the app owns and writes through the private app-field API:
+`docs/P2.1-RUNBOOK.md` (deploy steps) and §10 of `docs/P2-INTEGRATION.md`.
 
 Build and deploy from a machine with Forge credentials:
 

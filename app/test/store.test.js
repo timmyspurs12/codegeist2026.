@@ -106,10 +106,10 @@ test('tracking is a set, and settings merge rather than replace', async () => {
   await store.track('FS-102');
   assert.deepEqual((await store.tracked()).map((t) => t.key), ['FS-101', 'FS-102']);
 
-  await store.saveSettings({ openFieldId: 'customfield_10077' });
+  await store.saveSettings({ closureExpressionApplied: 'issue.customfield_10077 == 0' });
   const merged = await store.saveSettings({ capture: { confidenceThreshold: 0.7 } });
 
-  assert.equal(merged.openFieldId, 'customfield_10077');
+  assert.equal(merged.closureExpressionApplied, 'issue.customfield_10077 == 0');
   assert.equal(merged.capture.confidenceThreshold, 0.7);
   assert.equal(merged.capture.requireOwner, true, 'untouched capture defaults survive');
 });

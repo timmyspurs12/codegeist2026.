@@ -171,6 +171,13 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan,
                   )}
                 </div>
 
+                {(issue.diagnostics ?? []).filter((d) => d.level === 'error').slice(0, 2).map((d) => (
+                  <div className="closure__section" key={d.code}>
+                    <h4>Enforcement</h4>
+                    <div className="closure__text" style={{ color: 'var(--flame)' }}>{d.message}</div>
+                  </div>
+                ))}
+
                 {issue.closure.projection.stale && (
                   <div className="closure__section">
                     <h4>Projection</h4>

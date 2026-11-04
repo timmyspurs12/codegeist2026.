@@ -16,13 +16,14 @@ import assert from 'node:assert/strict';
 
 import { createHandlers } from '../src/handlers.js';
 import { createClosureValidator } from '../src/workflow.js';
-import { createFakeJira, createMemoryStorage, rawIssue, rawComment } from './support/fake-forge.js';
+import { createFakeJira, createMemoryStorage, MODULE_TYPE_PREFIX, rawIssue, rawComment } from './support/fake-forge.js';
 
 const NOW = new Date('2026-11-04T09:00:00.000Z');
 const ctx = {
   accountId: 'acc-maya',
   account: { displayName: 'Maya Okafor' },
   siteUrl: 'https://onepes930.atlassian.net',
+  localId: `${MODULE_TYPE_PREFIX}/relay-workspace`,
   extension: { issue: { key: 'FS-101' } },
 };
 
@@ -72,10 +73,6 @@ test('the whole slice: read, capture, accept, persist, enforce, verify, close', 
   assert.equal(loaded.assignee.id, 'acc-maya');
   assert.equal(loaded.assignee.name, 'Maya Okafor');
   assert.equal(loaded.commitments.length, 0, 'reading a case invents no commitments');
-
-  // The site is configured with a numeric condition field, as a real
-  // installation would be, so the field is written on every mutation.
-  await h['relay.settings.set']({ payload: { openFieldId: 'customfield_10077' }, context: ctx });
 
   // 2. Extract a candidate with exact evidence from real comment text.
   const scan = await h['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });

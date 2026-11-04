@@ -11,6 +11,7 @@
 import { counts, isOverdue, isUnresolved } from './ledger.js';
 import { decideGate } from './gate.js';
 import { PROJECTION_KEY } from './projection.js';
+import { CLOSURE_FIELD_PLACEHOLDER, closureExpression, describeField } from './field.js';
 
 export function toUiCommitment(issueKey, c, nowMs) {
   return {
@@ -101,6 +102,10 @@ export function buildIssue({ issue, ledger, projection, decision, now, diagnosti
     location: null,
     updatedAt: issue.updatedAt,
     commitments,
+    // Per-request diagnostics travel with the issue so a mutation that saved
+    // the ledger but could not update the projection or field is visible where
+    // the decision is shown, not only in a log.
+    diagnostics,
     closure: {
       ready: untracked ? true : decision.allow,
       blockingCount: decision.counts?.open ?? 0,
@@ -153,11 +158,13 @@ export function mergeActivity(trails, limit = 250) {
 }
 
 export function conditionExpression(fieldId) {
-  return `issue.${fieldId ?? 'customfield_relay_open'} == 0`;
+  // One builder, in field.js, so the manifest, the console and the tests cannot
+  // disagree about what the condition evaluates.
+  return closureExpression(fieldId ?? CLOSURE_FIELD_PLACEHOLDER);
 }
 
 export const PORTAL_NOTE =
-  'The customer portal skips workflow validators, so a validator alone does not cover it. The condition withholds the transition instead, and it cannot explain itself: a customer sees only that the transition is unavailable.';
+  'The customer portal skips workflow validators, so a validator alone does not cover it. The condition withholds the transition instead, reading the number in Relay’s read-only closure field. It cannot explain itself: a customer sees only that the transition is unavailable.';
 
 /**
  * Build the whole console workspace from Jira + Relay storage.
@@ -165,7 +172,7 @@ export const PORTAL_NOTE =
  * @param {{ jira: object, store: object, settings: object, context: object,
  *           now: Date, log?: Function }} deps
  */
-export async function buildWorkspace({ jira, store, settings, context, now, log = () => {} }) {
+export async function buildWorkspace({ jira, store, settings, context, now, log = () => {}, field = null }) {
   const diagnostics = [];
   const tracked = await store.tracked();
   const projectKeys = new Set();
@@ -199,6 +206,7 @@ export async function buildWorkspace({ jira, store, settings, context, now, log 
   }
 
   const people = await collectPeople({ jira, issues, context });
+  const closureField = describeField(field ?? {});
 
   return {
     workspace: {
@@ -226,11 +234,20 @@ export async function buildWorkspace({ jira, store, settings, context, now, log 
         enforcement: {
           validatorInstalled: Boolean(settings.validatorRegistered),
           conditionInstalled: Boolean(settings.conditionRegistered),
-          conditionExpression: conditionExpression(settings.openFieldId),
+          conditionExpression: closureField.expression,
           customerTransitionsEnabled: Boolean(settings.customerTransitionsEnabled),
           portalNote: PORTAL_NOTE,
           verification: settings.validatorRegistered || settings.conditionRegistered ? 'declared' : 'unverified',
-          openFieldId: settings.openFieldId ?? null,
+          // The app-owned field, resolved for this app and environment. `id` is
+          // null until Jira returns it, and null is not zero: the console shows
+          // "not resolved" rather than pretending the condition can read.
+          field: closureField,
+          fieldId: closureField.id,
+          fieldKey: closureField.key,
+          fieldTypeId: closureField.typeId,
+          fieldResolved: closureField.resolved,
+          manifestLine: closureField.manifestLine,
+          expressionApplied: settings.closureExpressionApplied ?? null,
         },
         capture: settings.capture,
       },
