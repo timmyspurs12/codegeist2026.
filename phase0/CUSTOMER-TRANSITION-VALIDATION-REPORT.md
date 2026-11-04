@@ -152,6 +152,27 @@ transition, refused to an agent with the same unresolved commitments, was grante
 customer. This is LIVE VERIFIED, and it matches the Atlassian documentation quoted in
 §2 rather than contradicting it.
 
+### 4.1b What the editor itself calls a "rule"
+
+The transition panel groups four things under **Rules**, as seen on the `Resolved`
+transition (screenshots, 2026-11-04):
+
+| Editor label | Workflow concept |
+|---|---|
+| `Restrict transition` | conditions |
+| `Request input` | transition screen |
+| `Validate details` | validator (*formerly labelled "Validators"*) |
+| `Perform actions` | post functions |
+
+The customer-portal warning is attached to the **Customer transitions** block and reads,
+literally: **"Rules won't work when customer transitions are enabled."** It does not say
+"validators". Read structurally — LIVE VERIFIED as UI wording — the warning claims the
+entire rule set of that transition is skipped for the customer path.
+
+§4.1 proves that claim for `Validate details` and is silent about the other three. It is
+therefore a plausible-but-unproven extension to say conditions are skipped too, and so
+the condition test in §4.4 is treated as open, not as a formality.
+
 ### 4.2 What did not hold up, and is therefore not cited
 
 Recording these matters as much as recording the result — each one was a plausible
