@@ -218,6 +218,31 @@ evidence of the step — see §2.3.
 - The only variable was the stored count. The gate discriminates between "unresolved
   obligations" and "none", which is the difference between a validator and a lock.
 
+### A22 — a post function was added to the same transition
+- Under **Perform actions** on `Mark as done`: *Update a request field* → **Labels**
+  → add `relay-postfunction-ran`, with "Add to the existing selections" and
+  "Clear this field" off. Published; **Perform actions `1`** persisted.
+  [image-77..84]
+- Run order was chosen deliberately: the blocked run comes **first**, because a
+  label is sticky. Had the control run gone first, its label would still have been
+  on the issue during the blocked run and the evidence would have been worthless.
+
+### A23 — blocked run: the post function did not run
+- `blockingCount: 2` written (`updatedAt 2026-11-04T06:23:23Z`). `FS-1` reopened from
+  `Done` to `Reopened` via `Reopen issue` (no rules on that transition), then
+  `Mark as done` attempted.
+- Refused with the same message; status stayed `Reopened`; **`Labels: None`**.
+  [image-85..88]
+
+### A24 — control run: the post function runs when allowed
+- `blockingCount: 0`, `message: null`. The same transition was then submitted.
+- It succeeded: status `Done`, and **`Labels: relay-postfunction-ran`**.
+  [image-89]
+- Same issue, transition, payload and post function; only the stored count differed.
+- **T9 answered: post functions on the transition do not run when the validator
+  refuses it.** A rejected closure leaves no side effect behind — no label, no field
+  change, no comment.
+
 ---
 
 ## 2. What is established so far
@@ -235,6 +260,8 @@ evidence of the step — see §2.3.
 7. A refusal **does not apply the transition** — the status is unchanged (A18).
 8. It **releases** when the stored count is zero: the identical request succeeds
    (A21).
+9. A **post function** on the same transition does not run when the validator
+   refuses, and does run when it allows (A23, A24).
 
 ### 2.2 A platform constraint recovered from the UI
 The transition panel states, above the customer-transitions toggle:
@@ -252,8 +279,6 @@ reloading from the server — which is what A11 did. Claims of persistence rest 
 that reload, not on the panel still being on screen.
 
 ### 2.4 Not established — do not imply these from the verdict
-- Whether a **post function** on the same transition is skipped when the gate
-  blocks it (V2.1 item T9). Untested.
 - **Team-managed** projects (E3). Atlassian's community and docs say validators are
   inert there; nothing in this run tests a team-managed project.
 - **Customer-facing** JSM transitions. Customer transitions were **off** on the
@@ -281,7 +306,7 @@ that reload, not on the panel still being on screen.
 | E1.4 | same attempt from a board | **NOT APPLICABLE** — no board exists on this site (A19) |
 | E1.5 | same attempt via REST `POST …/transitions` | **HTTP 400** with the same message (A20) |
 | E1.6 | write `blocking=0`, repeat | **HTTP 204**, transition applied (A21) |
-| E1.7 | post function on the same transition | **NOT TESTED** |
+| E1.7 | post function on the same transition (T9) | **SKIPPED when blocked**, runs when allowed — control included (A23, A24) |
 
 ## 4. Changed files
 
