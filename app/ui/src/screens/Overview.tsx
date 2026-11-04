@@ -69,7 +69,7 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
                 </div>
               </div>
               <div className="readiness__meta">
-                <span className="time">re-evaluated {timeAgo(workspace.issues[0].closure.evaluatedAt)}</span>
+                <span className="time">re-evaluated {timeAgo(workspace.issues[0]?.closure.evaluatedAt ?? new Date().toISOString())}</span>
               </div>
             </div>
             <div className="meter" role="img" aria-label={`${open} open, ${overdue} overdue, ${verifiedCount} verified commitments`}>
