@@ -241,6 +241,28 @@ editor warning "Rules won't work…" (§4.1b), which is why it was tested rather
 4. **The `Restrict to when a field is a specific value` rule type exists** (picker,
    screenshot) and is the intended production shape, but was **NOT TESTED**.
 
+### 4.6 Post-revert state
+
+The workflow was restored before the experiment was closed, and the restoration was checked
+against the same API the tests used rather than against the editor panel:
+
+| Label | Path | Listing after revert |
+|---|---|---|
+| `c3-12-post-revert-agent` | agent | `[111:In review, 121:Resolved->Done]` — the transition is offered again, so the condition is gone |
+| `c3-13-post-revert-customer` | customer | `[]` — the portal switch is off, so the path does not exist |
+
+What was reverted: the `Restrict from all users` rule, the `Relay closure gate (probe)`
+validator, and the customer-transition switch (`Customers can make this transition`), all
+on the single `Resolved` transition (`In Progress → Done`) of
+`FS: Default ESM workflow for Jira Service Management`. Nothing was changed in any other
+workflow, project or request type. The two disposable work items (`FS-1`, `FS-2`) are left
+in place as the subjects of the recorded evidence.
+
+The revert mattered operationally, not just hygienically: while the condition was live,
+**no user of that workflow could resolve a request at all** — including an administrator.
+That is the strongest argument for testing conditions on a disposable transition, and it is
+why the revert was verified through the API before anything else was written up.
+
 ---
 
 ## 5. Alternatives, and what each actually guarantees
