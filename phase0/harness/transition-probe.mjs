@@ -24,7 +24,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { classifyAttempt, validatorRan, isListed, buildAttemptBody, findTransition } from './probe-core.mjs';
+import { offeredList, classifyAttempt, validatorRan, isListed, buildAttemptBody, findTransition } from './probe-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVIDENCE_DIR = join(HERE, '..', 'e1-customer', 'evidence');
@@ -91,12 +91,15 @@ async function main() {
     transitionArg: transitionArg ? String(transitionArg) : null,
     resolution: resolution ? String(resolution) : null,
     statusBefore: before.status,
-    transitionsOffered: Array.isArray(listed.body?.transitions)
-      ? listed.body.transitions.map((t) => ({ id: t.id, name: t.name, to: t.to?.name, hasScreen: t.hasScreen }))
-      : null,
+    transitionsOffered: offeredList(listed.body)?.map((t) => ({
+      id: t.id,
+      name: t.name,
+      to: t.to?.name,
+      hasScreen: t.hasScreen,
+    })) ?? null,
     // An empty customer-transition set is a finding, not a glitch, so keep the
     // raw body when the expected array is absent rather than recording null.
-    listBodyRaw: Array.isArray(listed.body?.transitions) ? null : JSON.stringify(listed.body).slice(0, 500),
+    listBodyRaw: offeredList(listed.body) ? null : JSON.stringify(listed.body).slice(0, 500),
     listHttpStatus: listed.status,
     transitionIsListed: transitionArg ? isListed(listed.body, transitionArg) : null,
     endpoint: customerPath ? 'servicedeskapi (customer transitions)' : 'rest/api/3 (agent transitions)',

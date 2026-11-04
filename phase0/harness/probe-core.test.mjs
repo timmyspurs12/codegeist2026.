@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  classifyAttempt, validatorRan, isListed, findTransition, buildAttemptBody, RELAY_MARKER,
+  classifyAttempt, validatorRan, isListed, findTransition, offeredList, buildAttemptBody, RELAY_MARKER,
 } from './probe-core.mjs';
 
 const relayBody = {
@@ -96,4 +96,18 @@ test('the service-desk endpoint\'s singular errorMessage is classified too', () 
 test('a service-desk refusal that is not Relay\'s is still not a Relay refusal', () => {
   const r = classifyAttempt(400, { errorMessage: 'Transition is not valid for this request' });
   assert.equal(r.outcome, 'refused_by_jira');
+});
+
+test('a customer transition listed under the paged `values` shape counts as offered', () => {
+  // The service-desk endpoint pages its result: {"size":1,"values":[{"id":"121","name":"Resolved"}]}
+  const body = { size: 1, start: 0, limit: 50, isLastPage: true, values: [{ id: '121', name: 'Resolved' }] };
+  assert.equal(isListed(body, '121'), true);
+  assert.equal(isListed(body, 'Resolved'), true);
+  assert.equal(findTransition(body, '121').name, 'Resolved');
+});
+
+test('offeredList separates "no transitions" from "could not read the shape"', () => {
+  assert.deepEqual(offeredList({ transitions: [{ id: '1' }] }), [{ id: '1' }]);
+  assert.deepEqual(offeredList({ values: [] }), []);
+  assert.equal(offeredList({ unexpected: true }), null);
 });

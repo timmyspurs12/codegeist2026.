@@ -51,8 +51,17 @@ export function validatorRan(result) {
 }
 
 /** @param {any} body Response of GET /rest/api/3/issue/{key}/transitions */
+export function offeredList(body) {
+  if (Array.isArray(body?.transitions)) return body.transitions;
+  if (Array.isArray(body?.values)) return body.values;
+  return null;
+}
+
 export function findTransition(body, nameOrId) {
-  const list = Array.isArray(body?.transitions) ? body.transitions : [];
+  // Two shapes: the agent endpoint returns an array under `transitions`, the
+  // service-desk customer endpoint returns a paged body under `values`. Reading
+  // only the first made an offered customer transition look like no transition.
+  const list = offeredList(body) ?? [];
   const wanted = String(nameOrId).toLowerCase();
   return list.find((t) => String(t.id) === String(nameOrId) || String(t.name).toLowerCase() === wanted) ?? null;
 }
