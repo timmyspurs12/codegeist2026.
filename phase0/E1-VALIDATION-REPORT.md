@@ -243,6 +243,20 @@ evidence of the step — see §2.3.
   refuses it.** A rejected closure leaves no side effect behind — no label, no field
   change, no comment.
 
+### A25 — cleanup: the post function was removed, and the removal persisted
+- The Perform actions rule was deleted, the workflow published, and then verified
+  after a **fresh editor load**: Perform actions empty (no badge), Validate details
+  still `1` with `Relay closure gate (probe)`, `Update workflow` grey and no
+  `Discard changes`. [image-92..99]
+- A Jira behaviour turned up during this and is worth recording: reopening the
+  workflow editor once restored an **unpublished draft** (blue `Update workflow`,
+  with no edit made since the load). Jira keeps editor drafts server-side per user.
+  This is exactly why a reload is the only accepted evidence of persistence in this
+  report — and why one earlier "grey button" reading was corrected rather than
+  trusted.
+
+---
+
 ---
 
 ## 2. What is established so far
@@ -294,6 +308,24 @@ that reload, not on the panel still being on screen.
 
 ---
 
+### 2.5 State the site was left in
+
+| Item | State |
+|---|---|
+| Validator on `Mark as done` | **still published** — deliberate, left for the team-managed and customer-transition questions |
+| Post function used for T9 | **removed and published**; verified by reload |
+| Gate state | `FS-1` at `blockingCount: 0`; no other work item has state |
+| Resolutions | one resolution `Done` **added** (the site had none; see A12) |
+| App version | `3.0.0`, development environment, `storage:app` granted |
+| API token used for the REST test | **operator to revoke** — it is a credential and has served its purpose |
+
+The validator being left published is a judgement call, stated plainly: it is inert
+under the states listed above, because a missing gate state fails open. "Inert" here
+is inferred from the policy and from `FS-1`'s stored count, not exhaustively tested
+against every work item in the project.
+
+---
+
 ## 3. Test ledger
 
 | # | Step | Result |
@@ -312,7 +344,7 @@ that reload, not on the panel still being on screen.
 
 | File | Change |
 |---|---|
-| `phase0/e1/screenshots/*.png` | 40 screenshots of this run (evidence) |
+| `phase0/e1/screenshots/*.png` | 63 screenshots of this run (evidence) |
 | `phase0/e1/evidence/gate-state-FS-1.json` | the state write that produced the refusal |
 | `phase0/E1-VALIDATION-REPORT.md` | this document |
 | `phase0/validator-probe/src/lab-request.js` | **new** — builds a URL from the webtrigger event (runtime or synthetic) |
