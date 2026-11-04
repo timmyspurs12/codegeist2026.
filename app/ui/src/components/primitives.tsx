@@ -89,9 +89,18 @@ export function Key({ children }: { children: ReactNode }) {
 
 export function Due({ iso, status }: { iso: string | null; status: CommitmentStatus }) {
   const tone = dueTone(iso, status);
+  // A settled commitment cannot be overdue. Once it is verified or dropped the
+  // date is a record, not a warning, so it is written as a date.
+  const settled = status === 'verified' || status === 'dropped';
+  const text = !iso
+    ? 'No date'
+    : settled
+      ? `Due ${new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+      : dueLabel(iso);
+  const color = tone === 'overdue' ? 'var(--flame)' : settled ? 'var(--muted)' : 'var(--ink-2)';
   return (
-    <span className="mono" style={{ fontSize: 11.5, color: tone === 'overdue' ? 'var(--flame)' : 'var(--ink-2)' }}>
-      {dueLabel(iso)}
+    <span className="mono" style={{ fontSize: 11.5, color }}>
+      {text}
     </span>
   );
 }
