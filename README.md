@@ -30,8 +30,9 @@ The application lives in `app/`:
 app/
   manifest.yml        Forge modules: global page, issue panel, workflow validator,
                       workflow condition (portal coverage)
-  src/                ledger, projection, gate, sync, audit, resolvers, workflow handlers
-  test/               34 unit tests — `npm test`
+  src/                data access (jira.js), extraction, storage, ledger, projection,
+                      gate, sync, audit, handlers, Forge binding (resolvers.js)
+  test/               71 tests — `npm test` (unit, handler, end-to-end slice, contract)
   ui/                 Custom UI (React + TS + Vite), own design system
   ui/src/screens/     Overview · Capture inbox · Case workspace · Activity · Settings
 docs/design/          design system + skill audit
@@ -47,6 +48,12 @@ npm run typecheck
 ```
 
 The UI runs against a clearly flagged fixture workspace until it is served inside Forge.
+Inside Forge it reads the real site; a failing bridge is an error screen, never a
+silent fall back to fixtures.
+
+**Phase 2 (real Jira integration)** — what was built, what is live-verified,
+documented-verified, inferred, untested or blocked, and the exact deploy steps:
+`docs/P2-INTEGRATION.md`.
 
 Build and deploy from a machine with Forge credentials:
 

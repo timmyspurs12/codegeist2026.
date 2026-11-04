@@ -20,7 +20,7 @@ export async function syncIssue(io, issueKey, { now = new Date(), maxAgeMs = 5 *
   const stale = isStale(existing, ledger, { nowMs: now.getTime(), maxAgeMs });
   const c = counts(ledger, now.getTime());
 
-  if (!stale.stale && existing.open === c.open && existing.overdue === c.overdue && existing.unowned === c.unowned) {
+  if (!stale.stale && !existing.guard && existing.open === c.open && existing.overdue === c.overdue && existing.unowned === c.unowned) {
     return { status: 'fresh', wrote: false, counts: c };
   }
 
@@ -56,4 +56,46 @@ export async function resyncAll(io, issueKeys, opts) {
     }
   }
   return { repaired, failed, attempted: issueKeys.length };
+}
+
+/**
+ * Fail-closed ordering for the customer portal.
+ *
+ * The portal condition reads one number that Relay projects onto the issue. A
+ * condition cannot consult the ledger, so the projection must never say "zero
+ * open" while the ledger holds work. Issue-property writes and ledger writes
+ * live in two different stores with no transaction between them, so Relay
+ * orders them deliberately:
+ *
+ *   1. If the transition leaves any commitment unresolved, write a *guard*
+ *      projection FIRST, stamped with the revision the ledger is about to take,
+ *      carrying the planned open count. A reader at this instant sees open > 0.
+ *   2. Write the ledger (revision-checked, read back).
+ *   3. Write the final projection and the condition field.
+ *
+ * If step 2 or 3 fails, what remains on the issue is the guard: stale, and
+ * saying `open > 0`. That is the safe direction — the portal is blocked until
+ * Relay reconciles. The dangerous direction (projection says zero while the
+ * ledger is not) is not reachable through this path, because the guard is
+ * written before the commitments exist.
+ *
+ * This is not atomicity, and it is not claimed to be. A guard write that fails
+ * aborts the mutation entirely: no ledger change happens either.
+ */
+export async function writeGuardProjection(io, issueKey, plannedLedger, plannedCounts, now = new Date()) {
+  if (plannedCounts.open <= 0) return { wrote: false, reason: 'no_open_commitments' };
+  const current = await io.readProjection(issueKey);
+  const alreadyBlocking = current && typeof current.open === 'number' && current.open > 0;
+  if (alreadyBlocking) return { wrote: false, reason: 'already_blocking' };
+
+  const guard = {
+    ...buildProjection(plannedLedger, plannedCounts, now.toISOString()),
+    guard: true,
+  };
+  await io.writeProjection(issueKey, guard);
+  const readBack = await io.readProjection(issueKey);
+  if (!readBack || readBack.ledgerRev !== guard.ledgerRev) {
+    throw new Error('guard_write_unverified');
+  }
+  return { wrote: true, projection: guard };
 }

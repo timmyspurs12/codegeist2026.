@@ -3,9 +3,9 @@ import type { ScreenProps } from './types';
 import { Button, CommitmentStamp, Due, OwnerStamp, Stamp, commitmentTone } from '../components/primitives';
 import { Dialog } from '../components/overlays';
 import { Icon } from '../components/Icons';
-import { clock, timeAgo } from '../lib/format';
+import { NOT_RECORDED, clock, timeAgo } from '../lib/format';
 
-export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, issueKey }: ScreenProps & { issueKey: string }) {
+export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan, issueKey }: ScreenProps & { issueKey: string }) {
   const issue = workspace.issues.find((i) => i.key === issueKey) ?? workspace.issues[0];
   const [expanded, setExpanded] = useState<string | null>(issue.commitments[0]?.code ?? null);
   const [closureOpen, setClosureOpen] = useState(false);
@@ -26,7 +26,10 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, issueKe
               <span className="casehead__key">{issue.key}</span>
               <Stamp tone={issue.statusCategory === 'done' ? 'verified' : 'open'}>{issue.status}</Stamp>
               <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{issue.priority} priority</span>
-              <span style={{ marginLeft: 'auto' }}>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <Button size="sm" icon="sync" onClick={() => onScan?.(issue.key)}>
+                  Scan comments
+                </Button>
                 <Button
                   variant={issue.closure.ready ? 'default' : 'primary'}
                   size="sm"
@@ -168,6 +171,15 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, issueKe
                   )}
                 </div>
 
+                {issue.closure.projection.stale && (
+                  <div className="closure__section">
+                    <h4>Projection</h4>
+                    <div className="closure__text" style={{ color: 'var(--flame)' }}>
+                      The projection on this issue does not match Relay’s ledger. Customers stay blocked; an agent can reconcile from Settings.
+                    </div>
+                  </div>
+                )}
+
                 <div className="closure__section">
                   <h4>What an agent sees</h4>
                   <div className="closure__text">
@@ -201,10 +213,10 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, issueKe
                 <div className="panel__head"><h2 className="panel__title">Case</h2></div>
                 <div className="panel__body">
                   <div className="casedetails">
-                    <div className="casedetails__row"><span>Request type</span><span>{issue.requestType}</span></div>
-                    <div className="casedetails__row"><span>Reporter</span><span>{issue.reporter.name}</span></div>
-                    <div className="casedetails__row"><span>Priority</span><span>{issue.priority}</span></div>
-                    <div className="casedetails__row"><span>Location</span><span style={{ textAlign: 'right' }}>{issue.location}</span></div>
+                    <div className="casedetails__row"><span>Issue type</span><span>{issue.requestType ?? NOT_RECORDED}</span></div>
+                    <div className="casedetails__row"><span>Reporter</span><span>{issue.reporter?.name ?? NOT_RECORDED}</span></div>
+                    <div className="casedetails__row"><span>Priority</span><span>{issue.priority ?? NOT_RECORDED}</span></div>
+                    <div className="casedetails__row"><span>Location</span><span style={{ textAlign: 'right' }}>{issue.location ?? NOT_RECORDED}</span></div>
                     <div className="casedetails__row"><span>Updated</span><span>{timeAgo(issue.updatedAt)}</span></div>
                   </div>
                 </div>

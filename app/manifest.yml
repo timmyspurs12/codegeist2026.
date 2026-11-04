@@ -32,13 +32,17 @@ modules:
       projectTypes:
         - company-managed
 
-  # Customer portal coverage. The expression reads the numeric field Relay keeps
-  # in step with the ledger; the field id is site-specific and set at install.
+  # Customer portal coverage. Jira expressions can read a custom field but not
+  # an app's entity properties, so the condition reads the NUMERIC FIELD Relay
+  # keeps in step with the ledger. Field ids are site-specific: create the field,
+  # then replace customfield_10077 below and set the same id in Relay's Settings
+  # before deploying. A field that does not exist makes the expression fail,
+  # which Jira treats as false — closed to customers, never silently open.
   jira:workflowCondition:
     - key: relay-closure-condition
       name: Relay closure readiness
       description: Offers the closure transition only when Relay holds no unresolved commitments.
-      expression: "issue.customfield_relay_open == 0"
+      expression: "issue.customfield_10077 == 0"
       projectTypes:
         - company-managed
 
@@ -57,9 +61,8 @@ permissions:
     - storage:app
     - read:jira-work
     - write:jira-work
-  external:
-    fetch:
-      backend: []
+    # The person picker and assignable-user search are read:jira-user.
+    - read:jira-user
 
 app:
   id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000

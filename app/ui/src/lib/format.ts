@@ -1,5 +1,10 @@
-export function timeAgo(iso: string, now = Date.now()): string {
+/** Renders an absence as an absence: a missing timestamp is not "just now". */
+export const NOT_RECORDED = '—';
+
+export function timeAgo(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return NOT_RECORDED;
   const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return NOT_RECORDED;
   const s = Math.max(1, Math.round((now - then) / 1000));
   if (s < 60) return `${s}s ago`;
   const m = Math.round(s / 60);
@@ -11,11 +16,13 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
-export function clock(iso: string): string {
+export function clock(iso: string | null | undefined): string {
+  if (!iso) return NOT_RECORDED;
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-export function dayLabel(iso: string): string {
+export function dayLabel(iso: string | null | undefined): string {
+  if (!iso) return 'Undated';
   const d = new Date(iso);
   const today = new Date();
   const yesterday = new Date(Date.now() - 864e5);

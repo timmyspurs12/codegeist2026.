@@ -556,6 +556,14 @@
    ===================================================================== */
 
 .settings { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: clamp(20px, 3vw, 48px); align-items: start; }
+.setting__note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 6px;
+  max-width: 40ch;
+}
+
 .settings__intro { padding: 0 0 18px; border-bottom: 1px solid var(--rule-strong); }
 .settings__intro h2 {
   font-size: var(--t-head, 19px);

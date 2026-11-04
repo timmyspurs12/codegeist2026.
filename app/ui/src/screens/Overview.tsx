@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Commitment, Issue } from '../lib/types';
 import type { ScreenProps } from './types';
-import { Button, CommitmentStamp, Due, Empty, OwnerStamp, Toggle } from '../components/primitives';
+import { Button, CommitmentStamp, Due, Empty, Notice, OwnerStamp, Toggle } from '../components/primitives';
 import { Icon } from '../components/Icons';
 import { timeAgo } from '../lib/format';
 
@@ -62,6 +62,29 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
           </div>
         </div>
 
+        {(workspace.diagnostics ?? []).filter((d) => d.level !== 'info').length > 0 && (
+          <div style={{ marginTop: 20, display: 'grid', gap: 8 }}>
+            {(workspace.diagnostics ?? []).filter((d) => d.level !== 'info').slice(0, 3).map((d) => (
+              <Notice key={`${d.code}-${d.issueKey ?? ''}`} tone={d.level === 'error' ? 'danger' : 'warn'}>
+                <span>
+                  {d.issueKey ? <b className="mono" style={{ fontSize: 11.5, marginRight: 6 }}>{d.issueKey}</b> : null}
+                  {d.message}
+                </span>
+              </Notice>
+            ))}
+          </div>
+        )}
+
+        {workspace.issues.length === 0 ? (
+          <div style={{ marginTop: 26 }}>
+            <Empty
+              title="No case is tracked yet"
+              text={`Open a ${workspace.integrations.jira.project || 'Facilities'} issue in Jira and use the Commitments panel, or add its key under Settings → Jira connection. Relay only shows cases it has actually read.`}
+              action={<Button variant="primary" onClick={() => onNavigate('settings')}>Add a case</Button>}
+            />
+          </div>
+        ) : (
+        <>
         <section className="statusline">
           <div className="statusline__figure" data-tone={blocked.length ? 'late' : 'clear'}>{blocked.length}</div>
           <div className="statusline__body">
@@ -214,6 +237,8 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
             ))}
           </div>
         </section>
+        </>
+        )}
       </div>
     </div>
   );

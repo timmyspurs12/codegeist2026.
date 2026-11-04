@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { Workspace } from '../lib/types';
+import { useEffect, useState } from 'react';
+import type { DataMode, Workspace } from '../lib/types';
+import { api, type EnforcementCheck } from '../lib/api';
 import { Button, Notice, OwnerStamp, Stamp, Switch } from '../components/primitives';
 import { Icon } from '../components/Icons';
 import { timeAgo } from '../lib/format';
@@ -7,17 +8,36 @@ import { timeAgo } from '../lib/format';
 const sections = ['Workspace', 'Jira connection', 'Enforcement', 'Capture', 'Audit'] as const;
 type Section = typeof sections[number];
 
-export function Settings({ workspace, onChange, toast }: {
+export function Settings({ workspace, onChange, toast, mode }: {
   workspace: Workspace;
   onChange: (w: Workspace) => void;
   toast: (m: string) => void;
+  mode?: DataMode;
 }) {
   const [section, setSection] = useState<Section>('Workspace');
   const [name, setName] = useState(workspace.name);
   const [autoCapture, setAutoCapture] = useState(workspace.integrations.capture.autoCapture);
   const [threshold, setThreshold] = useState(workspace.integrations.capture.confidenceThreshold);
   const [requireOwner, setRequireOwner] = useState(workspace.integrations.capture.requireOwner);
-  const { capture } = workspace.integrations;
+  const [trackKey, setTrackKey] = useState('');
+  const [fieldId, setFieldId] = useState(workspace.integrations.enforcement.openFieldId ?? '');
+  const [check, setCheck] = useState<EnforcementCheck | null>(null);
+  // Registration is not observable from inside an app: settings only ever
+  // report what Relay declared in its manifest, never what a workflow does.
+  const [reg, setReg] = useState({ validator: false, condition: false });
+  const [busy, setBusy] = useState(false);
+  const { capture, enforcement, jira } = workspace.integrations;
+  const firstIssue = workspace.issues[0]?.key;
+
+  useEffect(() => {
+    if (mode !== 'live') return;
+    let cancelled = false;
+    api.settings().then((s) => {
+      if (cancelled) return;
+      setReg({ validator: Boolean(s.validatorRegistered), condition: Boolean(s.conditionRegistered) });
+    }).catch(() => { /* treat as unverified */ });
+    return () => { cancelled = true; };
+  }, [mode]);
 
   return (
     <div className="wrap wrap--narrow">
@@ -86,16 +106,64 @@ export function Settings({ workspace, onChange, toast }: {
                   <p>Reads come through Forge resolvers using the identity Jira passes in. There is no stored token, and no call is made that the app manifest does not declare.</p>
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <Notice tone="ok">
-                    Connected to {workspace.integrations.jira.site} · project {workspace.integrations.jira.project} · last sync {timeAgo(workspace.integrations.jira.lastSync)}
-                  </Notice>
+                  {mode === 'live' ? (
+                    <Notice tone="ok">
+                      Connected to {jira.site} · project {jira.project || 'not configured'} · last read {timeAgo(jira.lastSync)}
+                    </Notice>
+                  ) : (
+                    <Notice tone="warn">
+                      Fixture preview. These cases are demo data, not your Jira site; nothing here is written anywhere.
+                    </Notice>
+                  )}
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Request types in scope</div>
-                    <div className="setting__desc">Relay tracks commitments on these request types only.</div>
+                    <div className="setting__title">Tracked cases</div>
+                    <div className="setting__desc">
+                      {workspace.issues.length
+                        ? `Relay holds a commitment ledger for ${workspace.issues.length} case${workspace.issues.length > 1 ? 's' : ''}.`
+                        : 'No case is tracked yet. Open a Facilities issue in Jira and use the Commitments panel, or add its key here.'}
+                    </div>
                   </div>
-                  <div className="setting__control mono" style={{ fontSize: 12 }}>Report a repair · Compliance visit</div>
+                  <div className="setting__control mono" style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {workspace.issues.length === 0 ? '—' : workspace.issues.map((i) => <span key={i.key}>{i.key}</span>)}
+                  </div>
+                </div>
+                <div className="setting">
+                  <div>
+                    <div className="setting__title">Add a case</div>
+                    <div className="setting__desc">
+                      {mode === 'live'
+                        ? `Reads the issue from ${jira.site} and starts a ledger for it.`
+                        : 'Fixture workspace: adding a Jira case needs the Forge bridge.'}
+                    </div>
+                  </div>
+                  <div className="setting__control" style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      className="input"
+                      placeholder="FS-101"
+                      value={trackKey}
+                      onChange={(e) => setTrackKey(e.target.value.toUpperCase())}
+                      aria-label="Issue key to track"
+                    />
+                    <Button
+                      variant="primary"
+                      disabled={mode !== 'live' || busy || !/^[A-Z][A-Z0-9_]*-\d+$/.test(trackKey.trim())}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          const next = await api.track(trackKey.trim());
+                          onChange(next);
+                          setTrackKey('');
+                          toast(`${trackKey.trim()} is now tracked.`);
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : String(err));
+                        } finally { setBusy(false); }
+                      }}
+                    >
+                      Track
+                    </Button>
+                  </div>
                 </div>
                 <div className="setting">
                   <div>
@@ -119,20 +187,26 @@ export function Settings({ workspace, onChange, toast }: {
                     <div className="setting__desc">Refuses agent and API closures with a written reason naming what is outstanding.</div>
                   </div>
                   <div className="setting__control">
-                    <Stamp tone={workspace.integrations.enforcement.validatorInstalled ? 'verified' : 'late'}>
-                      {workspace.integrations.enforcement.validatorInstalled ? 'Installed' : 'Missing'}
+                    <Stamp tone={reg.validator ? 'verified' : 'open'}>
+                      {reg.validator ? 'Declared' : 'Not verified'}
                     </Stamp>
+                    <p className="setting__note">
+                      Declared in the manifest. An app cannot read a workflow's configuration, so whether this is attached to the closure transition is confirmed on the site, not here.
+                    </p>
                   </div>
                 </div>
                 <div className="setting">
                   <div>
                     <div className="setting__title">Workflow condition</div>
-                    <div className="setting__desc">Withholds closure from the customer portal while commitments are open. The portal skips validators, so this is the only thing covering it.</div>
+                    <div className="setting__desc">{enforcement.portalNote}</div>
                   </div>
                   <div className="setting__control">
-                    <Stamp tone={workspace.integrations.enforcement.conditionInstalled ? 'verified' : 'late'}>
-                      {workspace.integrations.enforcement.conditionInstalled ? 'Installed' : 'Missing'}
+                    <Stamp tone={reg.condition ? 'verified' : 'open'}>
+                      {reg.condition ? 'Declared' : 'Not verified'}
                     </Stamp>
+                    <p className="setting__note">
+                      Until the condition is attached to the closure transition on this site, the customer portal is not covered.
+                    </p>
                   </div>
                 </div>
                 <div className="setting">
@@ -140,16 +214,88 @@ export function Settings({ workspace, onChange, toast }: {
                     <div className="setting__title">Condition expression</div>
                     <div className="setting__desc">Evaluated by Jira, not by Relay. It can withhold a transition; it cannot explain one.</div>
                   </div>
-                  <div className="setting__control"><div className="proj">{workspace.integrations.enforcement.conditionExpression}</div></div>
+                  <div className="setting__control"><div className="proj">{enforcement.conditionExpression}</div></div>
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Customer transitions</div>
-                    <div className="setting__desc">{workspace.integrations.enforcement.portalNote}</div>
+                    <div className="setting__title">Condition field</div>
+                    <div className="setting__desc">
+                      The numeric custom field the condition reads. Site-specific, so it is configuration, not code.
+                    </div>
+                  </div>
+                  <div className="setting__control" style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      className="input"
+                      placeholder="customfield_10077"
+                      value={fieldId}
+                      onChange={(e) => setFieldId(e.target.value.trim())}
+                      aria-label="Condition field id"
+                    />
+                    <Button
+                      disabled={mode !== 'live' || busy || fieldId === (enforcement.openFieldId ?? '')}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          await api.saveSettings({ openFieldId: fieldId || null });
+                          onChange({ ...workspace, integrations: { ...workspace.integrations, enforcement: { ...enforcement, openFieldId: fieldId || null } } });
+                          toast(fieldId ? 'Condition field saved.' : 'Condition field cleared.');
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : String(err));
+                        } finally { setBusy(false); }
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+                <div className="setting">
+                  <div>
+                    <div className="setting__title">Reconcile and check</div>
+                    <div className="setting__desc">
+                      Re-derives the projection from the ledger, then reports what the gate, the projection and the condition field each say.
+                    </div>
                   </div>
                   <div className="setting__control">
-                    <Stamp tone={workspace.integrations.enforcement.customerTransitionsEnabled ? 'late' : 'open'}>
-                      {workspace.integrations.enforcement.customerTransitionsEnabled ? 'Enabled' : 'Disabled'}
+                    <Button
+                      icon="sync"
+                      disabled={mode !== 'live' || !firstIssue || busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          setCheck(await api.enforcementCheck(firstIssue));
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : String(err));
+                        } finally { setBusy(false); }
+                      }}
+                    >
+                      Run check
+                    </Button>
+                  </div>
+                </div>
+                {check && (
+                  <div style={{ marginTop: 16 }}>
+                    <Notice tone={check.allowed ? 'ok' : 'danger'}>
+                      <div>
+                        <div style={{ fontWeight: 500 }}>
+                          {check.key}: closure {check.allowed ? 'permitted' : 'blocked'} ({check.code})
+                        </div>
+                        <div className="mono" style={{ fontSize: 11, marginTop: 4 }}>
+                          ledger rev {check.ledgerRev ?? '—'} · projection open {String(check.projection?.open ?? '—')} · field {String(check.field ?? 'not configured')}
+                          {check.stale ? ' · projection stale' : ''}
+                        </div>
+                        {check.diagnostics.map((d) => <div key={d.code} style={{ fontSize: 12, marginTop: 4 }}>{d.message}</div>)}
+                      </div>
+                    </Notice>
+                  </div>
+                )}
+                <div className="setting">
+                  <div>
+                    <div className="setting__title">Customer transitions</div>
+                    <div className="setting__desc">Whether the portal may attempt closure at all. Relay never writes a customer-facing message; a customer sees Jira's own refusal, if the site shows one.</div>
+                  </div>
+                  <div className="setting__control">
+                    <Stamp tone={enforcement.customerTransitionsEnabled ? 'late' : 'open'}>
+                      {enforcement.customerTransitionsEnabled ? 'Enabled' : 'Disabled'}
                     </Stamp>
                   </div>
                 </div>

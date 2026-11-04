@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DataMode, Workspace } from './lib/types';
 import { api } from './lib/api';
 import { Icon, type IconName } from './components/Icons';
-import { Button, Empty, OwnerStamp, Skeleton, Stamp } from './components/primitives';
+import { Button, Empty, Notice, OwnerStamp, Skeleton, Stamp } from './components/primitives';
 import { CommandPalette, Sheet, Toasts, type Command, type Toast } from './components/overlays';
 import { Overview } from './screens/Overview';
 import { CaptureInbox } from './screens/CaptureInbox';
@@ -30,6 +30,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [bootError, setBootError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +39,9 @@ export function App() {
       setWorkspace(res.workspace);
       setMode(res.mode);
       setCaseKey((k) => k || res.workspace.issues[0]?.key || '');
+    }).catch((err: unknown) => {
+      if (cancelled) return;
+      setBootError(err instanceof Error ? err.message : String(err));
     });
     return () => { cancelled = true; };
   }, []);
@@ -88,6 +92,26 @@ export function App() {
 
   const openCommitment = useCallback((issueKey: string, code: string) => setDrawer({ issueKey, code }), []);
 
+  /** Read the issue's real comments and queue anything that reads like a promise. */
+  const scanIssue = useCallback(async (key: string) => {
+    try {
+      const res = await api.scan(key);
+      if (res.unavailable) { toast(res.unavailable, 'overdue'); return; }
+      replaceIssue(res.issue);
+      const created = res.created.length;
+      if (created === 0) {
+        toast(res.duplicates > 0
+          ? `Nothing new — ${res.duplicates} suggestion${res.duplicates > 1 ? 's' : ''} already captured from these comments.`
+          : `Read ${res.scanned.comments} comment${res.scanned.comments === 1 ? '' : 's'} on ${key} and found no new promise.`);
+      } else {
+        toast(`${created} suggestion${created > 1 ? 's' : ''} queued from ${key}. Nothing is a commitment until a person accepts it.`, 'verified');
+      }
+      if (res.rejected.length) toast(`${res.rejected.length} candidate${res.rejected.length > 1 ? 's were' : ' was'} rejected because the quotation could not be anchored.`, 'overdue');
+    } catch (err) {
+      toast(`Scan failed: ${err instanceof Error ? err.message : String(err)}`, 'overdue');
+    }
+  }, [replaceIssue, toast]);
+
   const counts = useMemo(() => {
     if (!workspace) return { inbox: 0, blocked: 0 };
     let inbox = 0, blocked = 0;
@@ -119,7 +143,7 @@ export function App() {
   const drawerIssue = workspace?.issues.find((i) => i.key === drawer?.issueKey);
   const drawerCommitment = drawerIssue?.commitments.find((c) => c.code === drawer?.code);
 
-  if (!workspace) return <Boot />;
+  if (!workspace) return <Boot error={bootError} />;
 
   const mobilePrimary: Route[] = ['overview', 'inbox', 'case'];
   const moreActive: boolean = route === 'activity' || route === 'settings';
@@ -192,6 +216,7 @@ export function App() {
               onOpenCommitment={openCommitment}
               toast={toast}
               onNavigate={go}
+              onScan={scanIssue}
               onAccept={async (k, code, ownerId, dueAt) => {
                 replaceIssue(await api.accept(k, code, ownerId, dueAt));
                 toast(`${code} accepted. Closure re-evaluated for ${k}.`, 'verified');
@@ -210,10 +235,11 @@ export function App() {
               onOpenCommitment={openCommitment}
               toast={toast}
               onNavigate={go}
+              onScan={scanIssue}
             />
           )}
           {route === 'activity' && <Activity workspace={workspace} onOpenCase={openCase} onOpenCommitment={openCommitment} toast={toast} onNavigate={go} />}
-          {route === 'settings' && <Settings workspace={workspace} onChange={setWorkspace} toast={toast} />}
+          {route === 'settings' && <Settings workspace={workspace} onChange={setWorkspace} toast={toast} mode={mode} />}
         </main>
 
         <nav className="tabbar" aria-label="Primary">
@@ -303,7 +329,7 @@ function Baton() {
   );
 }
 
-function Boot() {
+function Boot({ error }: { error?: string | null }) {
   return (
     <div className="app">
       <header className="masthead">
@@ -324,9 +350,23 @@ function Boot() {
             <div style={{ height: 10 }} />
             <Skeleton w="min(520px, 84%)" h={12} />
             <div style={{ height: 30 }} />
-            <Skeleton h={64} />
-            <div style={{ height: 20 }} />
-            <Empty title="Opening the ledger" text="Reading cases, commitments and evidence…" />
+            {error ? (
+              <Notice tone="danger">
+                <div>
+                  <div style={{ fontWeight: 500 }}>Relay could not open the ledger</div>
+                  <div style={{ marginTop: 6 }}>{error}</div>
+                  <div style={{ marginTop: 10 }}>
+                    <Button size="sm" onClick={() => window.location.reload()}>Try again</Button>
+                  </div>
+                </div>
+              </Notice>
+            ) : (
+              <>
+                <Skeleton h={64} />
+                <div style={{ height: 20 }} />
+                <Empty title="Opening the ledger" text="Reading cases, commitments and evidence…" />
+              </>
+            )}
           </div>
         </div>
       </main>
