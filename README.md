@@ -19,3 +19,38 @@ Atlassian Codegeist 2026 — research, review and Phase 0 validation for **Relay
 Both reviews' scores are machine-checked: `node phase0/harness/check-review.mjs` sums each score table, verifies the totals, checks that the prose headline matches the table, and rejects stale wording from earlier drafts.
 
 No application code has been written. That is deliberate: the review gates the build. The one thing standing between this and a decision is a site, a login and four hours.
+
+---
+
+## Relay product (Phase 1)
+
+The application lives in `app/`:
+
+```
+app/
+  manifest.yml        Forge modules: global page, issue panel, workflow validator,
+                      workflow condition (portal coverage)
+  src/                ledger, projection, gate, sync, audit, resolvers, workflow handlers
+  test/               34 unit tests — `npm test`
+  ui/                 Custom UI (React + TS + Vite), own design system
+  ui/src/screens/     Overview · Capture inbox · Case workspace · Activity · Settings
+docs/design/          design system + skill audit
+docs/P1-IMPLEMENTATION-REPORT.md
+```
+
+Run the interface locally:
+
+```
+cd app/ui && npm install && npm run dev     # http://localhost:5180
+npm run check:render                        # renders every screen, asserts content
+npm run typecheck
+```
+
+The UI runs against a clearly flagged fixture workspace until it is served inside Forge.
+
+Build and deploy from a machine with Forge credentials:
+
+```
+cd app/ui && npm run build     # emits app/static/relay
+cd .. && npx @forge/cli deploy && npx @forge/cli install --upgrade
+```

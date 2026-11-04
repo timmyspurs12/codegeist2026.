@@ -1,0 +1,67 @@
+# Relay — commitment operations for Jira Service Management.
+#
+# The enforcement design is the conclusion of the customer-transition
+# investigation (phase0/CUSTOMER-TRANSITION-VALIDATION-REPORT.md, decision B):
+#   * a workflow VALIDATOR guards agent and REST closure, and can explain itself;
+#   * a workflow CONDITION guards the CUSTOMER PORTAL, because the portal skips
+#     validators — proven live: the same transition refused an agent and admitted
+#     a customer (c3-3 vs c3-7), and a condition then closed that path (c3-11).
+#   * the condition is expression-only, so it reads a projection Relay writes
+#     onto the issue. It cannot call Relay, and it cannot say why.
+
+modules:
+  jira:globalPage:
+    - key: relay-workspace
+      title: Relay
+      resource: relay-ui
+      resolver:
+        function: relay-resolver
+
+  jira:issuePanel:
+    - key: relay-case-panel
+      title: Commitments
+      resource: relay-ui
+      resolver:
+        function: relay-resolver
+
+  jira:workflowValidator:
+    - key: relay-closure-validator
+      name: Relay closure gate
+      description: Blocks closure while accepted commitments remain unresolved.
+      function: relay-validator
+      projectTypes:
+        - company-managed
+
+  # Customer portal coverage. The expression reads the numeric field Relay keeps
+  # in step with the ledger; the field id is site-specific and set at install.
+  jira:workflowCondition:
+    - key: relay-closure-condition
+      name: Relay closure readiness
+      description: Offers the closure transition only when Relay holds no unresolved commitments.
+      expression: "issue.customfield_relay_open == 0"
+      projectTypes:
+        - company-managed
+
+function:
+  - key: relay-resolver
+    handler: index.handler
+  - key: relay-validator
+    handler: index.closureValidator
+
+resources:
+  - key: relay-ui
+    path: static/relay
+
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+    - write:jira-work
+  external:
+    fetch:
+      backend: []
+
+app:
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  runtime:
+    name: nodejs22.x

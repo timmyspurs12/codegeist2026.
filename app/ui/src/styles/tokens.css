@@ -1,0 +1,90 @@
+/*
+ * Relay design tokens.
+ *
+ * Identity: an operations console on a mineral canvas, with a sodium-amber
+ * signal reserved for the one thing that needs a decision. Colour carries
+ * state, not decoration — if a hue is not telling you something about a
+ * commitment, it should not be on screen.
+ */
+
+:root {
+  /* --- surface & ink ------------------------------------------------- */
+  --shell: #16211f;
+  --shell-raised: #1d2b28;
+  --shell-line: #2b3a36;
+  --shell-ink: #e7ece7;
+  --shell-ink-dim: #9aa8a2;
+
+  --canvas: #f2f3ee;
+  --surface: #ffffff;
+  --surface-sunken: #f7f8f4;
+  --surface-hover: #f4f5f0;
+
+  --ink: #121917;
+  --ink-2: #36413e;
+  --ink-3: #59645f;
+  --muted: #77817c;
+
+  --line: #dfe2db;
+  --line-strong: #c8cec3;
+  --line-faint: #eaede6;
+
+  /* --- signal -------------------------------------------------------- */
+  --sodium: #e59313;
+  --sodium-ink: #6f4304;
+  --sodium-wash: #fdf1d9;
+  --sodium-edge: #f0cf94;
+
+  /* --- commitment states --------------------------------------------- */
+  --await: #2f5185;
+  --await-wash: #e8eef7;
+  --verified: #0f5f52;
+  --verified-wash: #e2f0ec;
+  --overdue: #a32319;
+  --overdue-wash: #fbe8e5;
+  --dropped: #64706b;
+  --dropped-wash: #eef0ec;
+
+  /* --- type ---------------------------------------------------------- */
+  --sans: 'Schibsted Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+
+  --t-display: 30px;
+  --t-h1: 22px;
+  --t-h2: 16px;
+  --t-h3: 14px;
+  --t-body: 14px;
+  --t-small: 12.5px;
+  --t-micro: 11px;
+
+  /* --- space & shape -------------------------------------------------- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+
+  --rail-w: 236px;
+  --rail-w-collapsed: 64px;
+  --inspector-w: 372px;
+  --topbar-h: 56px;
+
+  --shadow-pop: 0 1px 0 rgba(18, 25, 23, 0.04), 0 18px 40px -20px rgba(18, 25, 23, 0.35);
+  --shadow-panel: 0 1px 2px rgba(18, 25, 23, 0.06), 0 10px 30px -18px rgba(18, 25, 23, 0.4);
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px rgba(47, 81, 133, 0.55);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 120ms;
+  --med: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --fast: 0ms; --med: 0ms; }
+}

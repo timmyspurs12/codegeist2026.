@@ -1,0 +1,17 @@
+{
+  "name": "relay",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Relay — commitment operations for Jira Service Management",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "forge:lint": "npx @forge/cli lint",
+    "forge:deploy": "npm --prefix ui run build && npx @forge/cli deploy"
+  },
+  "dependencies": {
+    "@forge/api": "^8.4.0",
+    "@forge/kvs": "^2.1.1",
+    "@forge/resolver": "^1.6.5"
+  }
+}

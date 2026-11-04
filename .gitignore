@@ -3,3 +3,8 @@ node_modules/
 *.tgz
 .env
 .DS_Store
+*.log
+
+# Build output: emit with `npm run build` in app/ui before `forge deploy`.
+app/static/relay/
+app/ui/.prerender/
