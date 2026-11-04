@@ -94,6 +94,9 @@ async function main() {
     transitionsOffered: Array.isArray(listed.body?.transitions)
       ? listed.body.transitions.map((t) => ({ id: t.id, name: t.name, to: t.to?.name, hasScreen: t.hasScreen }))
       : null,
+    // An empty customer-transition set is a finding, not a glitch, so keep the
+    // raw body when the expected array is absent rather than recording null.
+    listBodyRaw: Array.isArray(listed.body?.transitions) ? null : JSON.stringify(listed.body).slice(0, 500),
     listHttpStatus: listed.status,
     transitionIsListed: transitionArg ? isListed(listed.body, transitionArg) : null,
     endpoint: customerPath ? 'servicedeskapi (customer transitions)' : 'rest/api/3 (agent transitions)',
