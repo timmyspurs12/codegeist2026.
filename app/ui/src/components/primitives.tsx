@@ -17,77 +17,124 @@ export function Button({ variant = 'default', size = 'md', icon, iconAfter, chil
     .filter(Boolean).join(' ');
   return (
     <button type="button" className={cls} {...rest}>
-      {icon && <span className="btn__glyph"><Icon name={icon} size={size === 'sm' ? 13 : 14} /></span>}
+      {icon && <Icon name={icon} size={size === 'sm' ? 13 : 14} />}
       {children}
-      {iconAfter && <span className="btn__glyph"><Icon name={iconAfter} size={13} /></span>}
+      {iconAfter && <Icon name={iconAfter} size={12} />}
     </button>
   );
 }
 
-/* -------------------------------------------------------------- lozenges */
+/* ---------------------------------------------------------------- stamps */
 
-const statusLabel: Record<CommitmentStatus, string> = {
-  proposed: 'Awaiting review',
+export type StampTone = 'late' | 'review' | 'verified' | 'open' | 'dropped';
+
+const statusToTone: Record<CommitmentStatus, StampTone> = {
+  proposed: 'review',
+  open: 'open',
+  verified: 'verified',
+  dropped: 'dropped',
+};
+
+const statusWord: Record<CommitmentStatus, string> = {
+  proposed: 'Review',
   open: 'Open',
   verified: 'Verified',
   dropped: 'Dropped',
 };
 
-export function statusTone(c: Commitment): 'proposed' | 'await' | 'verified' | 'overdue' | 'dropped' | 'neutral' {
-  if (c.status === 'proposed') return 'proposed';
-  if (c.status === 'verified') return 'verified';
-  if (c.status === 'dropped') return 'dropped';
-  if (c.overdue) return 'overdue';
-  return 'await';
+export function commitmentTone(c: Commitment): StampTone {
+  if (c.status === 'open' && c.overdue) return 'late';
+  return statusToTone[c.status];
 }
 
-export function Lozenge({ tone, children }: { tone: 'proposed' | 'await' | 'verified' | 'overdue' | 'dropped' | 'neutral'; children: ReactNode }) {
-  return <span className={`lozenge lozenge--${tone}`}>{children}</span>;
-}
-
-export function CommitmentStatusLozenge({ commitment }: { commitment: Commitment }) {
-  const tone = statusTone(commitment);
-  const label = tone === 'overdue' ? 'Overdue' : statusLabel[commitment.status];
-  return <Lozenge tone={tone}>{label}</Lozenge>;
-}
-
-/* ----------------------------------------------------------------- people */
-
-export function Avatar({ person, size = 'md' }: { person: Person | null; size?: 'sm' | 'md' }) {
-  const cls = ['avatar', size === 'sm' && 'avatar--sm', !person && 'avatar--unowned'].filter(Boolean).join(' ');
+export function Stamp({ tone = 'open', children, icon }: { tone?: StampTone; children: ReactNode; icon?: IconName }) {
   return (
-    <span className={cls} title={person ? person.name : 'No owner'}>
-      {person ? person.initials : '—'}
+    <span className={`stamp stamp--${tone}`}>
+      {icon && <Icon name={icon} size={10} />}
+      {children}
     </span>
   );
 }
 
-export function Owner({ person, showRole = false }: { person: Person | null; showRole?: boolean }) {
-  if (!person) return <span className="owner"><Avatar person={null} /><span className="owner__name" style={{ color: 'var(--muted)' }}>Unassigned</span></span>;
+export function CommitmentStamp({ commitment }: { commitment: Commitment }) {
+  const tone = commitmentTone(commitment);
+  const word = tone === 'late' ? 'Overdue' : statusWord[commitment.status];
+  return <Stamp tone={tone} icon={tone === 'late' ? 'clock' : undefined}>{word}</Stamp>;
+}
+
+/* ---------------------------------------------------------------- people */
+
+export function OwnerStamp({ person, markOnly = false }: { person: Person | null; markOnly?: boolean }) {
+  if (!person) {
+    return (
+      <span className="owner" title="No owner">
+        <span className="owner__mark owner__mark--none" aria-hidden="true">—</span>
+        {!markOnly && <span className="owner__name owner__name--none">Unassigned</span>}
+      </span>
+    );
+  }
   return (
-    <span className="owner" title={showRole ? person.role : person.name}>
-      <Avatar person={person} />
-      <span className="owner__name">{person.name}</span>
+    <span className="owner" title={`${person.name}${person.role ? ` · ${person.role}` : ''}`}>
+      <span className="owner__mark" aria-hidden="true">{person.initials}</span>
+      {!markOnly && <span className="owner__name">{person.name}</span>}
     </span>
   );
 }
 
-/* ------------------------------------------------------------------ misc */
+/* ------------------------------------------------------------------ meta */
 
 export function Key({ children }: { children: ReactNode }) {
-  return <span className="key">{children}</span>;
+  return <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>{children}</span>;
 }
 
 export function Due({ iso, status }: { iso: string | null; status: CommitmentStatus }) {
   const tone = dueTone(iso, status);
-  const colour = tone === 'overdue' ? 'var(--overdue)' : tone === 'soon' ? 'var(--sodium-ink)' : 'var(--ink-3)';
   return (
-    <span className="time" style={{ color: colour, display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-      {(tone === 'overdue' || tone === 'soon') && <Icon name="clock" size={12} />}
+    <span className="mono" style={{ fontSize: 11.5, color: tone === 'overdue' ? 'var(--flame)' : 'var(--ink-2)' }}>
       {dueLabel(iso)}
     </span>
   );
 }
+
+export function Confidence({ value }: { value: number }) {
+  return (
+    <span className="confidence" title={`Extraction confidence ${Math.round(value * 100)}%`}>
+      <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{Math.round(value * 100)}%</span>
+      <span className="confidence__ticks" aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <span key={i} className="confidence__tick" data-on={i < Math.round(value * 5)} />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------- controls */
+
+export function Toggle<T extends string>({ value, options, onChange, label }: {
+  value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; label: string;
+}) {
+  return (
+    <div className="toggle-row" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" className="toggle" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
+          {o.label}{typeof o.count === 'number' && <span className="mono" style={{ marginLeft: 5, color: 'var(--muted)' }}>{o.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" className="switch" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}>
+      <span className="switch__track" aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/* ---------------------------------------------------------------- states */
 
 export function Empty({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
   return (
@@ -103,29 +150,7 @@ export function Skeleton({ w = '100%', h = 12, style }: { w?: string | number; h
   return <span className="skeleton" style={{ display: 'block', width: w, height: h, ...style }} />;
 }
 
-export function Notice({ tone = 'info', children }: { tone?: 'info' | 'danger' | 'ok'; children: ReactNode }) {
-  return <div className={`notice${tone === 'danger' ? ' notice--danger' : tone === 'ok' ? ' notice--ok' : ''}`}>{children}</div>;
-}
-
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button type="button" className="switch" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}>
-      <span className="switch__track" aria-hidden="true" />
-      <span>{label}</span>
-    </button>
-  );
-}
-
-export function Segmented<T extends string>({ value, options, onChange, label }: {
-  value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string;
-}) {
-  return (
-    <div className="segmented" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
+export function Notice({ tone = 'info', children }: { tone?: 'info' | 'danger' | 'ok' | 'warn'; children: ReactNode }) {
+  const cls = tone === 'info' ? 'notice' : `notice notice--${tone}`;
+  return <div className={cls}>{children}</div>;
 }

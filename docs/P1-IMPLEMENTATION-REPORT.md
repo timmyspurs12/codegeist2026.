@@ -1,8 +1,37 @@
 # Phase 1, milestone P1 — implementation report
 
-Status: **shell, design system and the two primary screens are built and running.** The
-enforcement model is implemented and unit-tested, and **not deployed** — see §7 for exactly
-why and what that costs.
+Status: **shell, design system and all six screens are built and running.** The interface was
+rebuilt in this revision: the v1 look was audited from a real 1440 px screenshot, rejected as a
+generic dashboard, and replaced with the ledger system documented in
+`docs/design/RELAY-DESIGN-SYSTEM.md` (see §0). The enforcement model is implemented and
+unit-tested, and **not deployed** — see §7 for exactly why and what that costs.
+
+---
+
+## 0. v2 interface rebuild (this revision)
+
+The brief for this revision was a frontend engineering correction, not a restyle: do not
+defend the existing design, do not make cosmetic adjustments. So the v1 interface was
+screenshotted at 1440 px and audited first. What the screenshot showed — nine specific
+failures, from a single 13–14 px type scale to a dark rail carrying no operational meaning —
+is recorded in the design system document, §8. Those failures, not taste, drove the rebuild.
+
+| Area | v1 | v2 |
+|---|---|---|
+| Identity | light dashboard with a dark sidebar | a ledger: ruled paper on a mineral canvas, a margin of running totals, ink stamps |
+| Shell | permanent 236 px rail | masthead + tab strip on desktop, bottom tab bar + More sheet on mobile |
+| Status | rounded pills | stamps — mono small caps, 2 px radius, hairline or flat tint |
+| Grouping | cards with borders and radii | 1 px rules, group heads, a deliberate margin |
+| The primary object | commitment wording truncated at ~150 px | wording gets the widest column; index, key, owner, due and state fit around it |
+| Colour | amber/blue used decoratively | flame / verdigris / ochre encode only operational fact |
+| Mobile | one breakpoint, tables never transformed | six breakpoints, records instead of tables, bottom sheets, safe areas |
+| Overview | four identical statistic cells | one oversized numeral, a segmented measure, a ruled ledger, a closing band |
+| Capture | suggestion and source in one column | queue rail, verbatim source with marked span and provenance, draft beside the decision form |
+
+Files replaced: `styles/{tokens,base,app,screens}.css` (1,732 lines), `App.tsx`,
+`components/{primitives,overlays,Icons}.tsx`, all five screens plus the new
+`screens/CommitmentSheet.tsx` (which replaced `CommitmentDrawer.tsx`). Backend, resolvers,
+manifest and the 34 tests were not touched.
 
 ---
 
@@ -12,7 +41,7 @@ why and what that costs.
 |---|---|
 | Forge app | `app/manifest.yml` — global page, issue panel, workflow validator, workflow condition, resolver + validator functions, scopes `storage:app`, `read:jira-work`, `write:jira-work`, zero external fetches |
 | UI | React 18 + TypeScript + Vite Custom UI, no component library, no CSS framework |
-| Design system | tokens, base, component and screen layers (~970 lines of CSS), documented in `docs/design/RELAY-DESIGN-SYSTEM.md` |
+| Design system | tokens, base, component and screen layers (1,732 lines of CSS) rebuilt as v2, documented in `docs/design/RELAY-DESIGN-SYSTEM.md` |
 | Screens | Overview, Capture Inbox, Case Workspace, Activity & Audit, Settings, Commitment detail drawer |
 | Interaction | ⌘/Ctrl-K command palette, filters, sorting-free but navigable tables, drawers, dialogs with confirmation, toasts, inline editing, keyboard-dismissable overlays, skeleton boot state, empty states, error/unavailable notices |
 | Backend | versioned commitment ledger, projection writer with read-back verification, fail-closed gate, validator handler, append-only audit, Forge resolvers |
@@ -88,11 +117,27 @@ condition has not yet been shown to behave on the portal the way the built-in ru
 | Static render of all six screens with content assertions (`npm run check:render`) | all pass; no `Invalid Date`, `NaN`, `undefined` or `[object Object]` in output |
 | Dev server | running, served for inspection |
 
-### Review passes
+### Browser verification (v2)
 
-Two review passes were done over the rendered markup and the CSS. They were **not** done on
-pixels, because no browser was available; the honest description is "reviewed as rendered
-text and computed styles", not "reviewed visually".
+A headless Chromium (puppeteer-core + a packaged Chromium build, no network install at run
+time) was driven against the running dev server. Every screen was rendered and screenshotted at
+**1440, 1280, 1024, 768, 390 and 360 px**, and `documentElement.scrollWidth > clientWidth` was
+measured on every load: **no horizontal page overflow at any width on any screen**. Overlays
+were opened and photographed at 390 px (commitment sheet, closure dialog, command palette,
+More sheet) and keyboard focus was photographed on the masthead. Console and page errors were
+collected on every run: none.
+
+Two review-and-fix passes were then run against those renders. Pass 1 replaced the capture
+inbox's two half-empty side-by-side panes with *quote above, proposal and decision below*, and
+moved the overview's recent-activity list out of the margin into a full-width closing band
+(the page previously ended in 400 px of empty canvas). Pass 2 fixed the mobile masthead (which
+rendered a truncated workspace name and a full account block because inline `display` styles
+overrode the media query), removed the duplicated "Why?" affordance on the mobile case screen,
+stacked the group-head hints, and loosened the ledger filters from a full-width toggle to an
+inline row.
+
+Older passes, done on markup and computed styles before a browser was available, are kept
+below because the fixes they produced are still in the product.
 
 Pass 1 (legibility and truth):
 - `--muted` measured at 3.61:1 and used for timestamps and eyebrows — below AA. Changed to

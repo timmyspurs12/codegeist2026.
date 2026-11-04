@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { Commitment, Issue } from '../lib/types';
 import type { ScreenProps } from './types';
-import { Button, CommitmentStatusLozenge, Due, Empty, Key, Owner, Segmented } from '../components/primitives';
+import { Button, CommitmentStamp, Due, Empty, OwnerStamp, Toggle } from '../components/primitives';
 import { Icon } from '../components/Icons';
 import { timeAgo } from '../lib/format';
 
-type Filter = 'all' | 'overdue' | 'awaiting';
+type Filter = 'all' | 'late' | 'review';
+
+type Group = { key: string; label: string; hint: string; rows: { issue: Issue; commitment: Commitment }[] };
 
 export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }: ScreenProps) {
   const [filter, setFilter] = useState<Filter>('all');
@@ -17,202 +19,201 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
         if (commitment.status === 'open' || commitment.status === 'proposed') all.push({ issue, commitment });
       }
     }
-    const weight = (r: { commitment: Commitment }) =>
-      r.commitment.status === 'proposed' ? 1 : r.commitment.overdue ? 0 : 2;
-    return all.sort((a, b) => weight(a) - weight(b));
+    return all;
   }, [workspace]);
 
-  const filtered = rows.filter((r) =>
-    filter === 'all' ? true : filter === 'overdue' ? r.commitment.overdue : r.commitment.status === 'proposed');
-
+  const late = rows.filter((r) => r.commitment.status === 'open' && r.commitment.overdue);
+  const review = rows.filter((r) => r.commitment.status === 'proposed');
+  const track = rows.filter((r) => r.commitment.status === 'open' && !r.commitment.overdue);
+  const unowned = rows.filter((r) => !r.commitment.owner);
   const blocked = workspace.issues.filter((i) => !i.closure.ready);
-  const overdue = rows.filter((r) => r.commitment.overdue).length;
-  const awaiting = rows.filter((r) => r.commitment.status === 'proposed').length;
-  const open = rows.filter((r) => r.commitment.status === 'open').length;
-  const unowned = rows.filter((r) => !r.commitment.owner).length;
+  const recent = workspace.activity.slice(0, 5);
+  const verified = workspace.issues.reduce((n, i) => n + i.commitments.filter((c) => c.status === 'verified').length, 0);
 
-  const verifiedCount = workspace.issues.reduce((n, i) => n + i.commitments.filter((c) => c.status === 'verified').length, 0);
+  const groups: Group[] = [
+    { key: 'late', label: 'Past the date given', hint: 'someone was promised this by now', rows: late },
+    { key: 'review', label: 'Awaiting a person', hint: 'captured from a comment, not yet agreed', rows: review },
+    { key: 'track', label: 'Within the promise', hint: 'on track, still owed', rows: track },
+  ].filter((g) => (filter === 'late' ? g.key === 'late' : filter === 'review' ? g.key === 'review' : true)) as Group[];
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  let index = 0;
 
   return (
-    <div className="page">
-      <header className="page__head">
-        <div>
-          <div className="page__eyebrow">{workspace.name} · {workspace.plan}</div>
-          <h1 className="page__title">What needs a decision today</h1>
-          <p className="page__sub">
-            Commitments made to tenants and to each other, tracked to evidence. A case cannot close while anything
-            here is still open.
-          </p>
-        </div>
-        <div className="page__actions">
-          <Button icon="inbox" onClick={() => onNavigate('inbox')}>{awaiting > 0 ? `Review ${awaiting} capture${awaiting > 1 ? 's' : ''}` : 'Open capture inbox'}</Button>
-        </div>
-      </header>
-
-      <div className="brief">
-        <div>
-          <section className={blocked.length ? 'readiness readiness--blocked' : 'readiness readiness--clear'}>
-            <div className="readiness__top">
-              <span className="readiness__seal" aria-hidden="true">
-                <Icon name={blocked.length ? 'lock' : 'shield'} size={17} />
-              </span>
-              <div>
-                <div className="readiness__state">
-                  {blocked.length
-                    ? `${blocked.length} ${blocked.length === 1 ? 'case is' : 'cases are'} blocked from closure`
-                    : 'Every case can close'}
-                </div>
-                <div style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 2 }}>
-                  {blocked.length
-                    ? `${overdue} overdue · ${unowned} without an owner · ${awaiting} awaiting review`
-                    : 'No unresolved commitments anywhere in the workspace.'}
-                </div>
-              </div>
-              <div className="readiness__meta">
-                <span className="time">re-evaluated {timeAgo(workspace.issues[0]?.closure.evaluatedAt ?? new Date().toISOString())}</span>
-              </div>
-            </div>
-            <div className="meter" role="img" aria-label={`${open} open, ${overdue} overdue, ${verifiedCount} verified commitments`}>
-              {Array.from({ length: Math.max(8, open + overdue) }).map((_, i) => (
-                <span
-                  key={i}
-                  className={`meter__seg${i < overdue ? ' meter__seg--overdue' : i < overdue + open ? ' meter__seg--await' : i < overdue + open + Math.min(verifiedCount, 6) ? ' meter__seg--verified' : ''}`}
-                />
-              ))}
-            </div>
-            <div className="meter-legend">
-              <span><b>{overdue}</b> overdue</span>
-              <span><b>{open - overdue}</b> on track</span>
-              <span><b>{verifiedCount}</b> verified</span>
-              <span style={{ marginLeft: 'auto' }}>projection synced {timeAgo(workspace.integrations.jira.lastSync)}</span>
-            </div>
-          </section>
-
-          <div className="strip">
-            <button className="strip__cell" onClick={() => setFilter('all')} data-tone="await">
-              <div className="strip__label">Open commitments</div>
-              <div className="strip__value">{open}<small>across {workspace.issues.length} cases</small></div>
-            </button>
-            <button className="strip__cell" onClick={() => setFilter('awaiting')} data-tone="await">
-              <div className="strip__label">Awaiting your review</div>
-              <div className="strip__value">{awaiting}<small>captured, not accepted</small></div>
-            </button>
-            <button className="strip__cell" onClick={() => setFilter('overdue')} data-tone="overdue">
-              <div className="strip__label">Past due date</div>
-              <div className="strip__value">{overdue}<small>someone must act</small></div>
-            </button>
-            <button className="strip__cell" onClick={() => setFilter('all')}>
-              <div className="strip__label">Unowned</div>
-              <div className="strip__value">{unowned}<small>no one is accountable</small></div>
-            </button>
+    <div className="wrap">
+      <div className="page">
+        <div className="masthead-line">
+          <div>
+            <div className="masthead-line__date">{today} · {workspace.site}</div>
+            <h1 className="page-title">What needs a decision today</h1>
+            <p className="page-lede">
+              Every promise made on a repairs case, who owes it, and what the case is waiting on before it can close.
+            </p>
           </div>
+          <div className="masthead-line__actions">
+            <Button icon="inbox" onClick={() => onNavigate('inbox')}>
+              {review.length > 0 ? `Review ${review.length}` : 'Capture inbox'}
+            </Button>
+            {blocked[0] && (
+              <Button variant="primary" icon="case" onClick={() => onOpenCase(blocked[0].key)}>
+                Open {blocked[0].key}
+              </Button>
+            )}
+          </div>
+        </div>
 
-          <section className="section">
+        <section className="statusline">
+          <div className="statusline__figure" data-tone={blocked.length ? 'late' : 'clear'}>{blocked.length}</div>
+          <div className="statusline__body">
+            <div className="statusline__claim">
+              {blocked.length
+                ? `${blocked.length === 1 ? 'case cannot' : 'cases cannot'} close until the promises on ${blocked.length === 1 ? 'it are' : 'them are'} settled`
+                : 'Every case is clear to close'}
+            </div>
+            <div className="statusline__detail">
+              {late.length} past the date given · {unowned.length} with no owner · {review.length} waiting for a person
+            </div>
+            <div className="measure" role="img" aria-label={`${late.length} overdue, ${track.length} on track, ${verified} verified`}>
+              {Array.from({ length: Math.max(12, late.length + track.length + Math.min(verified, 8)) }).map((_, i) => {
+                const tone = i < late.length ? 'late' : i < late.length + track.length ? 'review' : i < late.length + track.length + Math.min(verified, 8) ? 'done' : '';
+                return <span key={i} className={`measure__tick${tone ? ` measure__tick--${tone}` : ''}`} />;
+              })}
+            </div>
+          </div>
+          <div className="statusline__meta">
+            re-evaluated {timeAgo(workspace.issues[0]?.closure.evaluatedAt ?? new Date().toISOString())}<br />
+            projection synced {timeAgo(workspace.integrations.jira.lastSync)}<br />
+            {verified} verified all time
+          </div>
+        </section>
+
+        <div className="brief" style={{ marginTop: 26 }}>
+          <div style={{ minWidth: 0 }}>
             <div className="section__head">
-              <h2 className="section__title">Needs attention</h2>
-              <span className="section__note">
-                {filtered.length} of {rows.length} unresolved
-              </span>
-              <span className="section__link">
-                <Segmented
-                  label="Filter commitments"
+              <h2 className="section__title">The ledger</h2>
+              <span className="section__note">{rows.length} unresolved across {workspace.issues.length} cases</span>
+              <span className="section__tools">
+                <Toggle
+                  label="Filter the ledger"
                   value={filter}
                   onChange={setFilter}
                   options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'overdue', label: 'Overdue' },
-                    { value: 'awaiting', label: 'Review' },
+                    { value: 'all', label: 'All', count: rows.length },
+                    { value: 'late', label: 'Overdue', count: late.length },
+                    { value: 'review', label: 'Review', count: review.length },
                   ]}
                 />
               </span>
             </div>
 
-            <div className="panel">
-              {filtered.length === 0 ? (
-                <div style={{ padding: 16 }}>
+            <div className="ledger">
+              <div className="ledger__head" aria-hidden="true">
+                <span>#</span>
+                <span>Case</span>
+                <span>Promise</span>
+                <span>Owner</span>
+                <span>Due</span>
+                <span>State</span>
+              </div>
+
+              {rows.length === 0 && (
+                <div style={{ padding: '28px 8px' }}>
                   <Empty
-                    title="Nothing is waiting"
-                    text="Every commitment in this workspace is either verified or dropped. New captures appear here as soon as a comment contains a promise."
-                    action={<Button variant="primary" icon="inbox" onClick={() => onNavigate('inbox')}>Open capture inbox</Button>}
+                    title="Nothing is owed"
+                    text="Every commitment in this workspace is verified or dropped. New promises appear here the moment a comment is captured."
                   />
                 </div>
-              ) : (
-                <table className="grid-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 84 }}>Case</th>
-                      <th>Commitment</th>
-                      <th style={{ width: 170 }}>Owner</th>
-                      <th style={{ width: 130 }}>Due</th>
-                      <th style={{ width: 132 }}>State</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(({ issue, commitment }) => (
-                      <tr key={commitment.code} onClick={() => onOpenCommitment(issue.key, commitment.code)}>
-                        <td><Key>{issue.key}</Key></td>
-                        <td><span className="cell-quote">{commitment.text}</span></td>
-                        <td><Owner person={commitment.owner} /></td>
-                        <td><Due iso={commitment.dueAt} status={commitment.status} /></td>
-                        <td><CommitmentStatusLozenge commitment={commitment} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               )}
-            </div>
-          </section>
-        </div>
 
-        <aside style={{ display: 'grid', gap: 18 }}>
-          <div className="panel">
-            <div className="panel__head">
-              <h2 className="panel__title">Blocked from closing</h2>
-              <span style={{ marginLeft: 'auto' }} className="time">{blocked.length}</span>
-            </div>
-            {blocked.length === 0 ? (
-              <div className="panel__body" style={{ color: 'var(--ink-3)', fontSize: 13 }}>
-                No case is currently held open by Relay.
-              </div>
-            ) : (
-              <div className="attention">
-                {blocked.map((issue) => (
-                  <button key={issue.key} className="attention__row" data-tone={issue.closure.overdue ? 'overdue' : 'await'} onClick={() => onOpenCase(issue.key)}>
-                    <span className="attention__bar" aria-hidden="true" />
-                    <span className="attention__body">
-                      <span className="attention__text">{issue.summary}</span>
-                      <span className="attention__meta">
-                        <Key>{issue.key}</Key>
-                        <span className="time">{issue.closure.blockingCount} blocking</span>
-                        {issue.closure.overdue > 0 && <span className="lozenge lozenge--overdue">{issue.closure.overdue} overdue</span>}
-                      </span>
-                    </span>
-                    <Icon name="chevron" size={14} className="attention__chev" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="panel">
-            <div className="panel__head">
-              <h2 className="panel__title">Recent activity</h2>
-            </div>
-            <div className="feed">
-              {workspace.activity.slice(0, 6).map((event) => (
-                <div key={event.id} className="feed__row">
-                  <Owner person={event.actor} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="feed__text">
-                      <b>{event.summary}</b>
+              {groups.map((group) => (
+                <div key={group.key}>
+                  {group.rows.length > 0 && (
+                    <div className="grouphead">
+                      <span className="grouphead__label">{group.label}</span>
+                      <span className="grouphead__count">{group.rows.length}</span>
+                      <span className="grouphead__hint">{group.hint}</span>
                     </div>
-                    <div className="time" style={{ marginTop: 2 }}>{timeAgo(event.at)} · {event.issueKey}</div>
-                  </div>
+                  )}
+                  {group.rows.map(({ issue, commitment }) => {
+                    index += 1;
+                    return (
+                      <button
+                        key={`${issue.key}-${commitment.code}`}
+                        className="row"
+                        onClick={() => onOpenCommitment(issue.key, commitment.code)}
+                        aria-label={`${commitment.code}: ${commitment.text}. ${issue.key}`}
+                      >
+                        <span className="row__index">{String(index).padStart(2, '0')}</span>
+                        <span className="row__key">{issue.key}</span>
+                        <span className="row__text"><span>{commitment.text}</span></span>
+                        <span className="row__owner"><OwnerStamp person={commitment.owner} /></span>
+                        <span className="row__due" data-tone={commitment.status === 'open' && commitment.overdue ? 'late' : undefined}>
+                          <Due iso={commitment.dueAt} status={commitment.status} />
+                        </span>
+                        <span className="row__state"><CommitmentStamp commitment={commitment} /></span>
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </div>
-        </aside>
+
+          <aside className="brief__margin" aria-label="Running totals">
+            <div>
+              <div className="marginhead"><Icon name="activity" size={11} /> Running totals</div>
+              <div className="tally">
+                <div className="tally__row" data-tone="late">Past the date given <b>{late.length}</b></div>
+                <div className="tally__row">Within the promise <b>{track.length}</b></div>
+                <div className="tally__row">Waiting for a person <b>{review.length}</b></div>
+                <div className="tally__row">No owner <b>{unowned.length}</b></div>
+                <div className="tally__row">Verified all time <b>{verified}</b></div>
+              </div>
+            </div>
+
+            <div>
+              <div className="marginhead"><Icon name="lock" size={11} /> Held open</div>
+              {blocked.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', paddingTop: 10 }}>No case is being held open.</p>
+              ) : (
+                <div className="blockedlist">
+                  {blocked.map((issue) => (
+                    <button key={issue.key} className="blockedlist__item" onClick={() => onOpenCase(issue.key)}>
+                      <span className="blockedlist__summary">{issue.summary}</span>
+                      <span className="blockedlist__meta">
+                        {issue.key}
+                        <span>·</span>
+                        <span>{issue.closure.blockingCount} unresolved</span>
+                        {issue.closure.overdue > 0 && <span style={{ color: 'var(--flame)' }}>· {issue.closure.overdue} late</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        <section className="section">
+          <div className="section__head">
+            <h2 className="section__title">Recently changed</h2>
+            <span className="section__note">the last {recent.length} events, newest first</span>
+            <span className="section__tools">
+              <Button size="sm" variant="quiet" iconAfter="arrow" onClick={() => onNavigate('activity')}>
+                Activity &amp; audit
+              </Button>
+            </span>
+          </div>
+          <div className="recentband">
+            {recent.map((e) => (
+              <button key={e.id} className="recentband__item" onClick={() => onOpenCase(e.issueKey)}>
+                <span className="recentband__time">{timeAgo(e.at)}</span>
+                <span className="recentband__text">{e.summary}</span>
+                <span className="recentband__case">{e.issueKey}</span>
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

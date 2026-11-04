@@ -14,7 +14,7 @@ import { CaptureInbox } from './screens/CaptureInbox';
 import { CaseWorkspace } from './screens/CaseWorkspace';
 import { Activity } from './screens/Activity';
 import { Settings } from './screens/Settings';
-import { CommitmentDrawer } from './screens/CommitmentDrawer';
+import { CommitmentSheet } from './screens/CommitmentSheet';
 
 const noop = async () => {};
 const props = {
@@ -27,7 +27,9 @@ const props = {
 
 export function renderAll(): Record<string, string> {
   const issue = fixtureWorkspace.issues[0];
-  const commitment = issue.commitments[0];
+  const commitment =
+    fixtureWorkspace.issues.flatMap((i) => i.commitments).find((c) => c.status === 'open' && c.previousOwners.length > 0)
+    ?? issue.commitments[0];
   return {
     overview: renderToStaticMarkup(<Overview {...props} />),
     capture: renderToStaticMarkup(<CaptureInbox {...props} onAccept={noop} onReject={noop} />),
@@ -35,8 +37,7 @@ export function renderAll(): Record<string, string> {
     activity: renderToStaticMarkup(<Activity {...props} />),
     settings: renderToStaticMarkup(<Settings workspace={fixtureWorkspace} onChange={() => {}} toast={() => {}} />),
     drawer: renderToStaticMarkup(
-      <CommitmentDrawer
-        workspace={fixtureWorkspace}
+      <CommitmentSheet
         issue={issue}
         commitment={commitment}
         onClose={() => {}}

@@ -3,9 +3,11 @@ import type { ReactNode } from 'react';
 import { Icon, type IconName } from './Icons';
 import { Button } from './primitives';
 
-/* ---------------------------------------------------------------- drawer */
+/* ------------------------------------------------------------------ sheet */
+/* One component, two behaviours: a side panel on desktop, a full screen on
+   mobile. The CSS decides which; there is no second implementation. */
 
-export function Drawer({ open, onClose, title, subtitle, children, footer }: {
+export function Sheet({ open, onClose, title, subtitle, children, footer }: {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
@@ -20,12 +22,10 @@ export function Drawer({ open, onClose, title, subtitle, children, footer }: {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return; }
       if (e.key !== 'Tab' || !ref.current) return;
-      // A modal drawer that lets Tab escape into the page behind it is a modal
-      // drawer in name only.
       const focusable = ref.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
-      if (focusable.length === 0) return;
+      if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -42,22 +42,22 @@ export function Drawer({ open, onClose, title, subtitle, children, footer }: {
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="drawer" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : 'Details'} tabIndex={-1} ref={ref}>
-        <div className="drawer__head">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : 'Details'} tabIndex={-1} ref={ref}>
+        <div className="sheet__head">
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</div>
-            {subtitle && <div style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 3 }}>{subtitle}</div>}
+            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.015em' }}>{title}</div>
+            {subtitle && <div style={{ color: 'var(--ink-2)', fontSize: 12.5, marginTop: 3 }}>{subtitle}</div>}
           </div>
           <Button variant="quiet" size="sm" icon="close" aria-label="Close" onClick={onClose} />
         </div>
-        <div className="drawer__body">{children}</div>
-        {footer && <div className="drawer__foot">{footer}</div>}
+        <div className="sheet__body">{children}</div>
+        {footer && <div className="sheet__foot">{footer}</div>}
       </div>
     </>
   );
 }
 
-/* ---------------------------------------------------------------- dialog */
+/* ----------------------------------------------------------------- dialog */
 
 export function Dialog({ open, title, children, confirmLabel, onConfirm, onCancel, tone = 'default', busy }: {
   open: boolean;
@@ -96,7 +96,7 @@ export function Dialog({ open, title, children, confirmLabel, onConfirm, onCance
   );
 }
 
-/* ---------------------------------------------------------------- toasts */
+/* ----------------------------------------------------------------- toasts */
 
 export interface Toast { id: string; message: string; tone?: 'default' | 'verified' | 'overdue'; action?: { label: string; run: () => void } }
 
@@ -107,10 +107,8 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
         <div key={t.id} className={`toast${t.tone && t.tone !== 'default' ? ` toast--${t.tone}` : ''}`}>
           <span className="toast__tone" aria-hidden="true" />
           <span style={{ flex: 1 }}>{t.message}</span>
-          {t.action && (
-            <button className="toast__action" onClick={() => { t.action!.run(); onDismiss(t.id); }}>{t.action.label}</button>
-          )}
-          <button aria-label="Dismiss" onClick={() => onDismiss(t.id)} style={{ color: 'var(--shell-ink-dim)' }}>
+          {t.action && <button className="toast__action" onClick={() => { t.action!.run(); onDismiss(t.id); }}>{t.action.label}</button>}
+          <button aria-label="Dismiss" onClick={() => onDismiss(t.id)} style={{ color: '#9fb3a8' }}>
             <Icon name="close" size={13} />
           </button>
         </div>
@@ -149,7 +147,6 @@ export function CommandPalette({ open, commands, onClose }: { open: boolean; com
   useEffect(() => { setActive(0); }, [q]);
 
   if (!open) return null;
-
   const groups = [...new Set(filtered.map((c) => c.group))];
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -170,7 +167,7 @@ export function CommandPalette({ open, commands, onClose }: { open: boolean; com
         <input
           ref={inputRef}
           className="palette__input"
-          placeholder="Search cases, commitments or jump to a screen…"
+          placeholder="Search cases, commitments, people or screens…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Command search"
@@ -191,8 +188,8 @@ export function CommandPalette({ open, commands, onClose }: { open: boolean; com
                     onClick={() => { c.run(); onClose(); }}
                   >
                     <Icon name={c.icon} size={14} />
-                    <span>{c.label}</span>
-                    {c.hint && <span className="kbd" style={{ marginLeft: 'auto' }}>{c.hint}</span>}
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+                    {c.hint && <span className="kbd">{c.hint}</span>}
                   </button>
                 );
               })}

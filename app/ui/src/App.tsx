@@ -2,34 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DataMode, Workspace } from './lib/types';
 import { api } from './lib/api';
 import { Icon, type IconName } from './components/Icons';
-import { Avatar, Button, Skeleton } from './components/primitives';
-import { CommandPalette, Toasts, type Command, type Toast } from './components/overlays';
+import { Button, Empty, OwnerStamp, Skeleton, Stamp } from './components/primitives';
+import { CommandPalette, Sheet, Toasts, type Command, type Toast } from './components/overlays';
 import { Overview } from './screens/Overview';
 import { CaptureInbox } from './screens/CaptureInbox';
 import { CaseWorkspace } from './screens/CaseWorkspace';
 import { Activity } from './screens/Activity';
 import { Settings } from './screens/Settings';
-import { CommitmentDrawer } from './screens/CommitmentDrawer';
+import { CommitmentSheet } from './screens/CommitmentSheet';
 
 type Route = 'overview' | 'inbox' | 'case' | 'activity' | 'settings';
 
-const nav: { id: Route; label: string; icon: IconName; group: string }[] = [
-  { id: 'overview', label: 'Overview', icon: 'overview', group: 'Desk' },
-  { id: 'inbox', label: 'Capture inbox', icon: 'inbox', group: 'Desk' },
-  { id: 'case', label: 'Cases', icon: 'case', group: 'Desk' },
-  { id: 'activity', label: 'Activity & audit', icon: 'activity', group: 'Records' },
-  { id: 'settings', label: 'Settings', icon: 'settings', group: 'Records' },
+const NAV: { id: Route; label: string; short: string; icon: IconName }[] = [
+  { id: 'overview', label: 'Overview', short: 'Overview', icon: 'overview' },
+  { id: 'inbox', label: 'Capture inbox', short: 'Capture', icon: 'inbox' },
+  { id: 'case', label: 'Cases', short: 'Cases', icon: 'case' },
+  { id: 'activity', label: 'Activity & audit', short: 'Activity', icon: 'activity' },
+  { id: 'settings', label: 'Settings', short: 'Settings', icon: 'settings' },
 ];
 
 export function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [mode, setMode] = useState<DataMode>('fixture');
   const [route, setRoute] = useState<Route>('overview');
-  const [caseKey, setCaseKey] = useState<string>('');
+  const [caseKey, setCaseKey] = useState('');
   const [drawer, setDrawer] = useState<{ issueKey: string; code: string } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [compact, setCompact] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,22 +48,17 @@ export function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
   }, []);
 
+  const go = useCallback((r: Route) => { setRoute(r); setMoreOpen(false); }, []);
+
   useEffect(() => {
     let pendingG = false;
     let timer: number | undefined;
-
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPaletteOpen(true);
-        return;
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen(true); return; }
       if (e.key === 'Escape') { setPaletteOpen(false); return; }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
-
       const key = e.key.toLowerCase();
       if (key === 'g') {
         pendingG = true;
@@ -92,34 +87,29 @@ export function App() {
   }, []);
 
   const openCommitment = useCallback((issueKey: string, code: string) => setDrawer({ issueKey, code }), []);
-  const go = useCallback((r: Route) => setRoute(r), []);
 
   const counts = useMemo(() => {
-    if (!workspace) return { inbox: 0, overdue: 0, blocked: 0 };
-    let inbox = 0, overdue = 0, blocked = 0;
+    if (!workspace) return { inbox: 0, blocked: 0 };
+    let inbox = 0, blocked = 0;
     for (const i of workspace.issues) {
       if (!i.closure.ready) blocked += 1;
-      for (const c of i.commitments) {
-        if (c.status === 'proposed') inbox += 1;
-        if (c.status === 'open' && c.overdue) overdue += 1;
-      }
+      for (const c of i.commitments) if (c.status === 'proposed') inbox += 1;
     }
-    return { inbox, overdue, blocked };
+    return { inbox, blocked };
   }, [workspace]);
 
   const commands: Command[] = useMemo(() => {
     if (!workspace) return [];
-    const base: Command[] = [
-      { id: 'go-overview', label: 'Go to Overview', group: 'Navigate', icon: 'overview', hint: 'G O', run: () => setRoute('overview') },
-      { id: 'go-inbox', label: 'Go to Capture inbox', group: 'Navigate', icon: 'inbox', hint: 'G I', run: () => setRoute('inbox') },
-      { id: 'go-activity', label: 'Go to Activity & audit', group: 'Navigate', icon: 'activity', hint: 'G A', run: () => setRoute('activity') },
-      { id: 'go-settings', label: 'Go to Settings', group: 'Navigate', icon: 'settings', hint: 'G S', run: () => setRoute('settings') },
-    ];
+    const base: Command[] = NAV.map((n) => ({
+      id: `go-${n.id}`, label: `Go to ${n.label}`, group: 'Navigate', icon: n.icon,
+      hint: n.id === 'overview' ? 'G O' : n.id === 'inbox' ? 'G I' : n.id === 'activity' ? 'G A' : n.id === 'settings' ? 'G S' : 'G C',
+      run: () => setRoute(n.id),
+    }));
     const cases = workspace.issues.map<Command>((i) => ({
       id: `case-${i.key}`, label: `${i.key} — ${i.summary}`, group: 'Cases', icon: 'case', run: () => openCase(i.key),
     }));
     const commitments = workspace.issues.flatMap((i) => i.commitments.map<Command>((c) => ({
-      id: `cm-${c.code}`, label: `${c.code} — ${c.text.slice(0, 70)}`, group: 'Commitments', icon: 'shield',
+      id: `cm-${c.code}`, label: `${c.code} — ${c.text.slice(0, 68)}`, group: 'Commitments', icon: 'shield',
       run: () => openCommitment(i.key, c.code),
     })));
     return [...base, ...cases, ...commitments];
@@ -129,87 +119,72 @@ export function App() {
   const drawerIssue = workspace?.issues.find((i) => i.key === drawer?.issueKey);
   const drawerCommitment = drawerIssue?.commitments.find((c) => c.code === drawer?.code);
 
-  if (!workspace) return <BootSkeleton mode={mode} />;
+  if (!workspace) return <Boot />;
+
+  const mobilePrimary: Route[] = ['overview', 'inbox', 'case'];
+  const moreActive: boolean = route === 'activity' || route === 'settings';
 
   return (
     <>
       <a className="skip-link" href="#main">Skip to workspace</a>
-      <div className={`shell${compact ? ' shell--compact' : ''}`}>
-        <nav className="rail" aria-label="Primary">
-          <div className="rail__brand">
-            <span className="rail__mark" aria-hidden="true"><Baton /></span>
-            <span className="rail__wordmark">Relay<span> / repairs</span></span>
-          </div>
+      <div className="app">
+        <header className="masthead">
+          <div className="masthead__inner">
+            <button className="wordmark" onClick={() => go('overview')} aria-label="Relay — go to overview">
+              <span className="wordmark__glyph" aria-hidden="true"><Baton /></span>
+              <span className="wordmark__text">Relay</span>
+              <span className="wordmark__sub">commitment operations</span>
+            </button>
 
-          <div className="rail__scroll">
-            <button className="switcher" onClick={() => toast('Only one workspace is connected in this release.')}>
-              <span className="avatar" style={{ background: 'var(--sodium)', color: '#1b1305', borderColor: 'transparent' }}>NH</span>
-              <span style={{ minWidth: 0 }}>
-                <span className="switcher__name" style={{ display: 'block' }}>{workspace.name}</span>
-                <span className="switcher__meta" style={{ display: 'block' }}>{workspace.site}</span>
+            <button className="workspace-chip" onClick={() => toast('Only one workspace is connected in this release.')}>
+              <span className="workspace-chip__mono" aria-hidden="true">{initials(workspace.name)}</span>
+              <span className="workspace-chip__meta">
+                <span className="workspace-chip__name">{workspace.name}</span>
+                <span className="workspace-chip__host">{workspace.site}</span>
               </span>
-              <Icon name="chevron" size={13} className="switcher__chev" />
+              <span className="workspace-chip__caret"><Icon name="chevron" size={12} /></span>
             </button>
 
-            {['Desk', 'Records'].map((group) => (
-              <div className="rail__group" key={group}>
-                <div className="rail__label">{group}</div>
-                {nav.filter((n) => n.group === group).map((item) => {
-                  const badge = item.id === 'inbox' ? counts.inbox : item.id === 'overview' ? counts.blocked : 0;
-                  return (
-                    <button
-                      key={item.id}
-                      className="rail__item"
-                      aria-current={route === item.id ? 'page' : undefined}
-                      onClick={() => { setRoute(item.id); if (item.id === 'case' && !caseKey) setCaseKey(workspace.issues[0].key); }}
-                    >
-                      <Icon name={item.icon} size={15} />
-                      <span>{item.label}</span>
-                      {badge > 0 && <span className="rail__count">{badge}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+            <span className="masthead__spacer" />
 
-          <div className="rail__foot">
-            <Avatar person={workspace.viewer} />
-            <span style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500 }}>{workspace.viewer.name}</span>
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--shell-ink-dim)' }}>{workspace.viewer.role}</span>
-            </span>
-            <button aria-label="Collapse navigation" onClick={() => setCompact((c) => !c)} style={{ color: 'var(--shell-ink-dim)' }}>
-              <Icon name="chevron" size={14} />
-            </button>
-          </div>
-        </nav>
-
-        <div className="main" id="main">
-          <header className="topbar">
-            <button className="searchlaunch" onClick={() => setPaletteOpen(true)}>
+            <button className="searchbtn" onClick={() => setPaletteOpen(true)} aria-label="Search cases and commitments">
               <Icon name="search" size={14} />
-              <span>Search cases and commitments</span>
-              <span className="searchlaunch__hint"><span className="kbd">Ctrl</span><span className="kbd">K</span></span>
+              <span className="searchbtn__label">Search</span>
+              <span className="searchbtn__keys"><span className="kbd">Ctrl</span><span className="kbd">K</span></span>
             </button>
-            <span className="topbar__spacer" />
-            <span className={`mode-flag${mode === 'live' ? ' mode-flag--live' : ''}`} title={mode === 'live' ? 'Reading from Jira through Forge resolvers' : 'No Forge bridge detected — showing fixture data'}>
-              <Icon name={mode === 'live' ? 'link' : 'alert'} size={12} />
-              {mode === 'live' ? 'Live Jira data' : 'Fixture data'}
-            </span>
-            <Button
-              size="sm"
-              variant="quiet"
-              icon="inbox"
-              onClick={() => setRoute('inbox')}
-              aria-label={`Capture inbox: ${counts.inbox} awaiting review`}
-              title={`${counts.inbox} capture${counts.inbox === 1 ? '' : 's'} awaiting review`}
-            >
-              {counts.inbox}
-            </Button>
-          </header>
 
-          {route === 'overview' && <Overview workspace={workspace} onOpenCase={openCase} onOpenCommitment={openCommitment} toast={toast} onNavigate={go} />}
+            <span className={`mode${mode === 'live' ? ' mode--live' : ''}`} title={mode === 'live' ? 'Reading from Jira through Forge resolvers' : 'No Forge bridge — fixture data'}>
+              <Icon name={mode === 'live' ? 'link' : 'alert'} size={11} />
+              <span>{mode === 'live' ? 'Live' : 'Fixture'}</span>
+            </span>
+
+            <button className="account" onClick={() => go('settings')}>
+              <span className="owner__mark" aria-hidden="true">{workspace.viewer.initials}</span>
+              <span className="account__text">
+                <span className="account__name">{workspace.viewer.name}</span>
+                <span className="account__role">{workspace.viewer.role}</span>
+              </span>
+            </button>
+          </div>
+
+          <nav className="tabs" aria-label="Primary">
+            <div className="tabs__inner">
+              {NAV.map((n) => (
+                <button key={n.id} className="tab" aria-current={route === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                  <Icon name={n.icon} size={13} />
+                  {n.short}
+                  {n.id === 'inbox' && counts.inbox > 0 && <span className="tab__count">{counts.inbox}</span>}
+                  {n.id === 'overview' && counts.blocked > 0 && <span className="tab__count">{counts.blocked}</span>}
+                </button>
+              ))}
+            </div>
+          </nav>
+        </header>
+
+        <main className="main" id="main">
+          {route === 'overview' && (
+            <Overview workspace={workspace} onOpenCase={openCase} onOpenCommitment={openCommitment} toast={toast} onNavigate={go} />
+          )}
           {route === 'inbox' && (
             <CaptureInbox
               workspace={workspace}
@@ -218,13 +193,11 @@ export function App() {
               toast={toast}
               onNavigate={go}
               onAccept={async (k, code, ownerId, dueAt) => {
-                const next = await api.accept(k, code, ownerId, dueAt);
-                replaceIssue(next);
+                replaceIssue(await api.accept(k, code, ownerId, dueAt));
                 toast(`${code} accepted. Closure re-evaluated for ${k}.`, 'verified');
               }}
               onReject={async (k, code, reason) => {
-                const next = await api.reject(k, code, reason);
-                replaceIssue(next);
+                replaceIssue(await api.reject(k, code, reason));
                 toast(`${code} rejected — kept in the audit trail.`);
               }}
             />
@@ -241,12 +214,60 @@ export function App() {
           )}
           {route === 'activity' && <Activity workspace={workspace} onOpenCase={openCase} onOpenCommitment={openCommitment} toast={toast} onNavigate={go} />}
           {route === 'settings' && <Settings workspace={workspace} onChange={setWorkspace} toast={toast} />}
-        </div>
+        </main>
+
+        <nav className="tabbar" aria-label="Primary">
+          {mobilePrimary.map((id) => {
+            const n = NAV.find((x) => x.id === id)!;
+            return (
+              <button key={id} className="tabbar__item" aria-current={route === id ? 'page' : undefined} onClick={() => go(id)}>
+                <Icon name={n.icon} size={18} />
+                {n.short}
+                {id === 'inbox' && counts.inbox > 0 && <span className="tabbar__dot">{counts.inbox}</span>}
+              </button>
+            );
+          })}
+          <button className="tabbar__item" aria-current={moreActive ? 'page' : undefined} onClick={() => setMoreOpen(true)}>
+            <Icon name="more" size={18} />
+            More
+          </button>
+        </nav>
       </div>
 
+      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="Workspace">
+        <div style={{ display: 'grid', gap: 4 }}>
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              className="menuitem"
+              onClick={() => { go(n.id); setMoreOpen(false); }}
+              aria-current={route === n.id ? 'page' : undefined}
+            >
+              <Icon name={n.icon} size={15} />
+              <span className="menuitem__label">{n.label}</span>
+              {(n.id === 'inbox' ? counts.inbox : n.id === 'overview' ? counts.blocked : 0) > 0 && (
+                <span className="menuitem__count">
+                  {n.id === 'inbox' ? counts.inbox : counts.blocked}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--rule)' }}>
+          <div className="margin-note__label">Signed in</div>
+          <OwnerStamp person={workspace.viewer} />
+          <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>{workspace.site}</div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Stamp tone={mode === 'live' ? 'verified' : 'open'}>{mode === 'live' ? 'Live Jira data' : 'Fixture data'}</Stamp>
+        </div>
+        <div style={{ marginTop: 20 }}>
+          <Button variant="primary" icon="search" onClick={() => { setMoreOpen(false); setPaletteOpen(true); }}>Search everything</Button>
+        </div>
+      </Sheet>
+
       {drawerIssue && drawerCommitment && (
-        <CommitmentDrawer
-          workspace={workspace}
+        <CommitmentSheet
           issue={drawerIssue}
           commitment={drawerCommitment}
           onClose={() => setDrawer(null)}
@@ -271,36 +292,44 @@ export function App() {
   );
 }
 
+const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+
 function Baton() {
   return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-      <rect x="1.4" y="6.1" width="12.2" height="2.8" rx="1.4" fill="#1b1305" />
-      <path d="M4.6 8.9V3.4M10.4 8.9V3.4" stroke="#1b1305" strokeWidth="1.1" strokeLinecap="round" opacity=".55" />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <rect x="1.2" y="5.8" width="11.6" height="2.4" rx="1.2" fill="currentColor" opacity=".95" />
+      <path d="M4.4 8.2V3.1M9.6 8.2V3.1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity=".55" />
     </svg>
   );
 }
 
-function BootSkeleton({ mode }: { mode: DataMode }) {
+function Boot() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '236px 1fr', height: '100%' }}>
-      <div style={{ background: 'var(--shell)' }} />
-      <div style={{ padding: 28 }}>
-        <Skeleton w={120} h={10} />
-        <div style={{ height: 14 }} />
-        <Skeleton w={360} h={26} />
-        <div style={{ height: 8 }} />
-        <Skeleton w={520} h={12} />
-        <div style={{ height: 28 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 18 }}>
-          <Skeleton h={120} w="100%" />
-          <Skeleton h={120} w="100%" />
+    <div className="app">
+      <header className="masthead">
+        <div className="masthead__inner">
+          <span className="wordmark">
+            <span className="wordmark__glyph" aria-hidden="true"><Baton /></span>
+            <span className="wordmark__text">Relay</span>
+          </span>
         </div>
-        <div style={{ height: 18 }} />
-        <Skeleton h={220} w="100%" />
-        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 16 }}>
-          {mode === 'live' ? 'Connecting to Jira…' : 'Loading workspace…'}
-        </p>
-      </div>
+        <nav className="tabs"><div className="tabs__inner" /></nav>
+      </header>
+      <main className="main">
+        <div className="wrap wrap--narrow">
+          <div className="page">
+            <Skeleton w={140} h={9} />
+            <div style={{ height: 14 }} />
+            <Skeleton w="min(420px, 70%)" h={30} />
+            <div style={{ height: 10 }} />
+            <Skeleton w="min(520px, 84%)" h={12} />
+            <div style={{ height: 30 }} />
+            <Skeleton h={64} />
+            <div style={{ height: 20 }} />
+            <Empty title="Opening the ledger" text="Reading cases, commitments and evidence…" />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

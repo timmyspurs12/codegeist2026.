@@ -11,12 +11,12 @@ import { renderAll } from '../.prerender/prerender.js';
 const out = renderAll();
 
 const expected = {
-  overview: ['What needs a decision today', 'Needs attention', 'REP-1042', 'blocked from closure'],
-  capture: ['lifted verbatim', 'Suggestion', 'Accept commitment', 'REP-1039'],
-  case: ['Closure readiness', 'Commitment thread', 'What a customer sees', 'REP-1042'],
-  activity: ['Everything that happened', 'REP-1042'],
-  settings: ['How Relay behaves here', 'Jira site', 'Enforcement'],
-  drawer: ['Audit history', 'Verify'],
+  overview: ['What needs a decision today', 'The ledger', 'REP-1042', 'cases cannot close'],
+  capture: ['lifted verbatim', 'What Relay proposes', 'Accept commitment', 'REP-1039'],
+  case: ['Closure readiness', 'Commitments on this case', 'What a customer sees', 'REP-1042'],
+  activity: ['Every change to a promise, in order', 'REP-1042'],
+  settings: ['How Relay behaves on this site', 'Jira site', 'Enforcement'],
+  drawer: ['Handovers', 'Verified by', 'Confidence'],
 };
 
 const forbidden = [/Invalid Date/, />undefined</, /\bNaN\b/, /\[object Object\]/];
