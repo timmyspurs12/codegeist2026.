@@ -94,12 +94,35 @@ async function main() {
     transitionsOffered: Array.isArray(listed.body?.transitions)
       ? listed.body.transitions.map((t) => ({ id: t.id, name: t.name, to: t.to?.name, hasScreen: t.hasScreen }))
       : null,
+    listHttpStatus: listed.status,
     transitionIsListed: transitionArg ? isListed(listed.body, transitionArg) : null,
     endpoint: customerPath ? 'servicedeskapi (customer transitions)' : 'rest/api/3 (agent transitions)',
   };
 
   if (!listOnly) {
     const match = findTransition(listed.body, transitionArg);
+    const looksNumeric = /^\d+$/.test(String(transitionArg));
+
+    if (!match && !looksNumeric) {
+      // Sending a transition *name* where Jira wants an id produces
+      // "This request is invalid" from the service-desk endpoint — a refusal
+      // that looks like a gate decision and is not one. Fail loudly instead.
+      Object.assign(record, {
+        attemptHttpStatus: null,
+        attemptBody: null,
+        outcome: 'invalid_probe_call',
+        validatorRan: 'unknown',
+        relayMessage: null,
+        note: `transition '${transitionArg}' was not in the listing (HTTP ${listed.status}); refusing to send a name as an id`,
+      });
+      record.statusAfter = (await currentStatus()).status;
+      await mkdir(EVIDENCE_DIR, { recursive: true });
+      await writeFile(join(EVIDENCE_DIR, `${label}.json`), JSON.stringify(record, null, 2) + '\n');
+      console.error(`error: ${record.note}`);
+      console.error(`evidence: phase0/e1-customer/evidence/${label}.json`);
+      process.exit(2);
+    }
+
     const id = match?.id ?? String(transitionArg);
     const attemptPath = customerPath ? CUSTOMER_API(key) : `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`;
     const attempt = await jira(attemptPath, {
