@@ -126,8 +126,9 @@ async function main() {
   const file = join(EVIDENCE_DIR, `${label}.json`);
   await writeFile(file, JSON.stringify(record, null, 2) + '\n');
 
+  const offered = (record.transitionsOffered ?? []).map((t) => `${t.id}:${t.name}->${t.to}`).join(', ') || 'none';
   const summary = listOnly
-    ? `${label}: ${key} is '${record.statusBefore}'; transition listed = ${record.transitionIsListed}; ${record.transitionsOffered?.length ?? 0} offered`
+    ? `${label}: ${key} is '${record.statusBefore}'; offered [${offered}]`
     : `${label}: ${key} '${record.statusBefore}' -> '${record.statusAfter}'; POST ${record.attemptHttpStatus} => ${record.outcome}; validatorRan=${record.validatorRan}`;
   console.log(summary);
   console.log(`evidence: phase0/e1-customer/evidence/${label}.json`);
