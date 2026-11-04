@@ -195,16 +195,63 @@ reporting its own bug, and the only defence is to keep the raw response.
 items. The validator and the customer-portal switch are reverted once testing ends
 (§7); nothing outside this workflow was touched.
 
+### 4.4 Does a condition survive where a validator does not?
+
+A native **`Restrict transition`** rule (`Restrict from all users`, with
+*All users, including APIs*) was added to the same `Resolved` transition and published.
+It refuses everyone, which makes a refusal prove the rule is live rather than incidental.
+
+| Label | Path | Listing before POST | POST | Final status |
+|---|---|---|---|---|
+| `c3-10-agent-condition` | agent | `[111:In review]` — `121` gone | **400** `Can't move (FS-2). You might not have permission…` | `In Progress` |
+| `c3-11-customer-condition` | customer | `[]` — empty | **400** `You can not make this transition` (`transition.unavailable`) | `In Progress` |
+
+Set against §4.1, where the identical transition, with the identical unresolved
+commitments, was **granted** to a customer and **refused** to an agent:
+
+| | Customer listing | Customer POST | Outcome |
+|---|---|---|---|
+| Validator only (`c3-6`, `c3-7`) | `[{id:121, Resolved}]` | **204** | closure allowed with 2 open commitments |
+| Condition added (`c3-11`) | `[]` | **400** | closure refused |
+
+**Conclusion — LIVE VERIFIED:** the customer-portal path ignores `jira:workflowValidator`
+but honours workflow **conditions**. The feature that is skipped is the validator, not the
+transition's configuration as a whole. Note that this contradicts the plain reading of the
+editor warning "Rules won't work…" (§4.1b), which is why it was tested rather than assumed.
+
+### 4.5 What this does not licence
+
+1. **The tested rule is a native JSM condition, not a Forge module.** Whether a
+   `jira:workflowCondition` contributed by our app is honoured on the portal path the same
+   way is **NOT TESTED**. The rule picker does list `relay-phase0-probe` under
+   *Marketplace rules*, so the module type is available to the app; that is an opportunity,
+   not a result.
+2. **A condition cannot call Relay.** Conditions evaluate the transition's context and the
+   work item; they do not make an outbound call. The closure invariant must therefore be
+   *materialised onto the work item* — a field or property holding "unresolved commitments:
+   N" — and the condition compares that value. The freshness of that field becomes the new
+   race: if Relay updates it asynchronously, there is a window in which the field still says
+   zero and a customer (or agent) can close. This is the one place where an async write can
+   still reintroduce the failure the whole design exists to prevent.
+3. **The customer gets no explanation.** The refusal is the generic
+   `You can not make this transition`; the customer is not told which commitments are open.
+   Validators can carry a message, conditions cannot. Any "your request cannot be closed
+   while…" explanation has to be surfaced elsewhere — the portal request description, a
+   comment, or the Relay app's own UI — and none of those is synchronous with the refusal.
+4. **The `Restrict to when a field is a specific value` rule type exists** (picker,
+   screenshot) and is the intended production shape, but was **NOT TESTED**.
+
 ---
 
 ## 5. Alternatives, and what each actually guarantees
 
 | Option | Synchronous? | Guarantee | Verdict |
 |---|---|---|---|
-| `jira:workflowValidator` (current) | Yes | Transition refused before it is applied, message shown, post functions skipped | **Primary** — proven in E1 for agent and REST |
-| `jira:workflowCondition` | Yes | Transition is not offered, and a forced REST POST is rejected | **Candidate defence-in-depth**, *if* conditions are honoured on the portal — untested (§2.3) |
+| `jira:workflowValidator` (current) | Yes | Transition refused before it is applied, message shown, post functions skipped | **Primary for agent and REST** — proven (E1, `c3-3`). **Not applied on the portal path** (§4.1). |
+| `jira:workflowCondition` | Yes | Transition is not offered, and a forced POST is rejected | **Required for portal coverage** — honoured on the portal path where the validator is not (§4.4). Carries no message. |
+| Field-backed condition (`Restrict to when a field is a specific value`), fed by Relay | Yes | Same as above, with the value maintained by Relay | **Intended production shape** — rule type confirmed present, **NOT TESTED**; freshness of the field is its own race (§4.5.2) |
 | Automation rule / issue-updated listener that reopens the work item | **No** | Closure happens, then is undone | **Rejected** — explicitly not equivalent; leaves a window in which the closure is real |
-| Hiding the closure transition from the portal by policy | Yes | The path does not exist | **Product policy**, enforceable by construction |
+| Leaving the customer-transition switch off | Yes | The path does not exist at all | **Valid fallback**, but it is a setting an administrator can flip (§4.1 is what happens when they do) |
 | Required-fields / screens on the transition | — | Screens do not display in the portal at all (§2.1) | **Not available** for the portal path |
 
 ---
@@ -221,7 +268,49 @@ items. The validator and the customer-portal switch are reverted once testing en
 
 ## 7. Build-readiness decision
 
-*Pending §4.*
+**B — BUILD WITH A DOCUMENTED SCOPE LIMITATION.**
+
+**What is proven.** Relay's synchronous closure gate is enforced on the agent and REST
+paths, and is not enforced on the JSM customer-portal path. That is demonstrated, not
+inferred: the same transition, on the same work item, with the same two unresolved
+commitments, refused an agent and admitted a customer (`c3-3` vs `c3-7`).
+
+**What bounds the decision.** A supported, synchronous mechanism *does* govern the portal
+path — a workflow condition (§4.4). So this is not an architectural blocker; the invariant
+can be defended on every path, but not by the validator alone.
+
+**The limitation to be documented, in the words a user would need:**
+
+> Relay's closure gate is enforced whenever a colleague or integration closes a request.
+> If a project is configured to let **customers** close their own requests from the portal,
+> Jira applies that closure without running Relay's gate, and a request can be closed with
+> unresolved commitments. Relay therefore requires, for any request type where customer
+> closure is enabled, a workflow condition on that transition backed by Relay's open-
+> commitment field. Where that condition is absent, the safe configuration is to leave
+> customer closure switched off.
+
+**Preconditions before this becomes A.** Any one left undone keeps the decision at B:
+
+1. A Forge `jira:workflowCondition` is shown to be honoured on the portal path — the same
+   test as §4.4, run with our module rather than a built-in rule.
+2. The open-commitment field is written **before or atomically with** the ledger change that
+   would block a close, so there is no window in which the field says zero and the ledger
+   does not. This is the residual race and the only one that matters.
+3. The condition is verified to fail closed on app uninstall or evaluation error, as the
+   validator is.
+4. Tests cover the four combinations: agent/portal × blocked/unblocked — with the portal arm
+   driven by the same probe used here.
+
+**What would move this to C.** If a Forge condition is *also* ignored on the portal path,
+the hole is closable only by switching customer closure off, and whether that is acceptable
+becomes a product question rather than an engineering one. On the present evidence it is
+not: the built-in condition was honoured, and the app's module type exists.
+
+**The assumption under test.** This decision assumes Relay's first release does not
+*require* customer self-closure — customers raise and comment, agents close. If customer
+self-closure is a first-class requirement, the same evidence supports **C** until
+preconditions 1–4 are discharged, because today the product would be shipping a closure path
+it cannot gate.
 
 ---
 
@@ -229,7 +318,7 @@ items. The validator and the customer-portal switch are reverted once testing en
 
 | File | Contents |
 |---|---|
-| `phase0/e1-customer/evidence/*.json` | one file per case, machine-readable |
+| `phase0/e1-customer/evidence/*.json` | one file per case, machine-readable. `c3-3` agent refusal, `c3-7` customer closure, `c3-10`/`c3-11` condition arms |
 | `phase0/harness/transition-probe.mjs` | the instrument |
 | `phase0/harness/probe-core.mjs` | classification rules, tested |
 | `phase0/E1-VALIDATION-REPORT.md` | the prior enforcement evidence this builds on |

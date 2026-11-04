@@ -1,6 +1,8 @@
 # ADR-001 — How Relay enforces closure
 
-**Status:** Proposed (pending the experiment in `CUSTOMER-TRANSITION-VALIDATION-REPORT.md` §4)
+**Status:** Accepted 2026-11-04 — decision **B**, build with a documented scope limitation.
+Evidence: `CUSTOMER-TRANSITION-VALIDATION-REPORT.md` §4.1 (validator bypassed on the portal),
+§4.4 (condition honoured on the portal), §7 (decision and preconditions).
 
 ## Context
 
@@ -27,19 +29,34 @@ disables validation on the transition entirely.
 
 ## Decision
 
-*Pending §4 of the validation report.* The candidate position, to be confirmed or
-rejected by the experiment:
-
 1. **Primary mechanism — workflow validator.** Synchronous, refuses before the
-   transition is applied, carries a message derived from stored state, and is proven
-   on the agent and REST paths.
-2. **Defence in depth — workflow condition, if the portal honours it.** Conditions
-   decide whether a transition is offered at all. If a Forge condition can withhold
-   the closure button while obligations exist, the portal path is closed by the same
-   mechanism rather than by policy alone.
-3. **Product policy — closure transitions must not be portal-exposed while Relay is
-   armed**, unless (2) holds. This is a configuration constraint Relay can check and
-   surface, and it is honest: it removes the path rather than pretending to gate it.
+   transition is applied, carries a message derived from stored state, and is proven on
+   the agent and REST paths (E1; `c3-3`). It is **not** applied on the customer-portal
+   path (`c3-7`), so it cannot be the only mechanism.
+
+2. **Portal coverage — a workflow condition backed by Relay's open-commitment field.**
+   Conditions *are* honoured on the portal path (`c3-10`, `c3-11`), where validators are
+   not. Because a condition cannot call Relay, the invariant must be materialised onto
+   the work item (open commitments: N) and the condition must refuse while N > 0.
+   This is a **build item, not a shipped capability**: the tested rule was a native JSM
+   condition, and a Forge-contributed `jira:workflowCondition` is not yet shown to
+   behave the same way on that path.
+
+3. **Configuration constraint — customer closure off where the condition is absent.**
+   Relay should detect a portal-exposed closure transition with no backing condition and
+   refuse to arm, or warn loudly. Removing the path is honest; pretending to gate it is
+   not.
+
+**The residual race, stated plainly.** The condition is only as fresh as the field it
+reads. If Relay writes "open commitments" asynchronously with respect to the ledger
+mutation that creates the obligation, there is a window in which the field says zero and
+a close is permitted. Closing that window — write-before-or-with the ledger change — is a
+precondition of shipping, not a refinement.
+
+**Consequence for the release.** Relay's gate holds on every path *provided* the
+condition is present. Where it is not, and customer closure is enabled, a customer can
+close a request with unresolved commitments. That limitation must appear in the user-facing
+documentation in those terms, not as a footnote about "validators".
 
 ## Explicitly rejected
 
@@ -54,9 +71,13 @@ rejected by the experiment:
 
 ## Consequences
 
-- If the portal bypass is confirmed and no condition-based remediation exists, Relay
-  ships with a **disclosed scope limitation**: agent and API closures are gated;
-  a customer closing their own request from the portal is not.
+- The portal bypass is confirmed. Relay therefore ships with a **disclosed scope
+  limitation**: agent and API closures are gated by the validator; a customer closing
+  their own request from the portal is gated only where a condition is configured.
+- Validators carry a message to the user; conditions do not. The portal refusal is
+  Jira's generic "You can not make this transition", so any explanation of *why* has to
+  be surfaced by Relay elsewhere — asynchronously, and therefore not as part of the
+  refusal.
 - Relay should detect portal-exposed closure transitions at configuration time and
   refuse to arm, or warn loudly. Silent arming on a workflow where a customer can
   bypass the gate is the failure mode this ADR exists to prevent.
