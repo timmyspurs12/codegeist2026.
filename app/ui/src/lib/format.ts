@@ -27,14 +27,20 @@ export function dayLabel(iso: string): string {
 
 export function dueLabel(iso: string | null): string {
   if (!iso) return 'No date';
-  const d = new Date(iso);
-  const days = Math.round((d.getTime() - Date.now()) / 864e5);
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Due tomorrow';
-  if (days === -1) return '1 day overdue';
-  if (days < 0) return `${Math.abs(days)} days overdue`;
-  if (days <= 21) return `Due in ${days} days`;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const ms = new Date(iso).getTime() - Date.now();
+  const days = ms / 864e5;
+
+  // Rounding is not good enough here: a date six hours past is overdue, and
+  // saying "Due today" beside an Overdue lozenge looks like a bug because it is.
+  if (ms < 0) {
+    const late = Math.ceil(Math.abs(days));
+    return late <= 1 ? '1 day overdue' : `${late} days overdue`;
+  }
+  if (days < 1) return 'Due today';
+  if (days < 2) return 'Due tomorrow';
+  const ahead = Math.floor(days);
+  if (ahead <= 21) return `Due in ${ahead} days`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 export function dueTone(iso: string | null, status: string): 'overdue' | 'soon' | 'plain' {

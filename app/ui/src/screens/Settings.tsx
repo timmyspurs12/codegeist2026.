@@ -16,6 +16,7 @@ export function Settings({ workspace, onChange, toast }: {
   const [autoCapture, setAutoCapture] = useState(workspace.integrations.capture.autoCapture);
   const [threshold, setThreshold] = useState(workspace.integrations.capture.confidenceThreshold);
   const [requireOwner, setRequireOwner] = useState(workspace.integrations.capture.requireOwner);
+  const [name, setName] = useState(workspace.name);
 
   const capture = workspace.integrations.capture;
 
@@ -44,14 +45,23 @@ export function Settings({ workspace, onChange, toast }: {
                   <div className="setting__title">Workspace name</div>
                   <div className="setting__desc">Shown across the console and in audit exports.</div>
                 </div>
-                <input className="input" defaultValue={workspace.name} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Workspace name" />
+                  <Button
+                    variant="primary"
+                    disabled={name.trim() === workspace.name || name.trim().length < 2}
+                    onClick={() => { onChange({ ...workspace, name: name.trim() }); toast('Workspace name saved.'); }}
+                  >
+                    Save
+                  </Button>
+                </div>
               </div>
               <div className="setting">
                 <div>
                   <div className="setting__title">Jira site</div>
-                  <div className="setting__desc">The cloud site this workspace reads and writes.</div>
+                  <div className="setting__desc">The cloud site this workspace reads and writes. Set by the installation, not here.</div>
                 </div>
-                <input className="input" defaultValue={workspace.site} readOnly />
+                <span className="key">{workspace.site}</span>
               </div>
               <div className="setting">
                 <div>

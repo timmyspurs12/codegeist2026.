@@ -132,7 +132,7 @@ export function CaptureInbox({ workspace, onAccept, onReject, onOpenCase, toast 
             <section>
               <div className="section__head" style={{ marginBottom: 8 }}>
                 <h2 className="section__title" style={{ fontSize: 13 }}>The comment it was lifted from</h2>
-                <span className="section__note">{commitment.evidence.author.name} · {timeAgo(commitment.evidence.createdAt)}</span>
+                <span className="section__note">quoted exactly, not paraphrased</span>
               </div>
               <div className="source">
                 <div className="source__head">

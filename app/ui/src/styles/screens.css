@@ -93,6 +93,8 @@
 .attention__body { min-width: 0; flex: 1; }
 .attention__text { font-size: 13.5px; line-height: 1.45; }
 .attention__meta { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.attention__chev { color: var(--line-strong); margin-top: 3px; flex: none; }
+.attention__row:hover .attention__chev { color: var(--ink-3); }
 
 .feed { display: flex; flex-direction: column; }
 .feed__row { display: flex; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line-faint); }

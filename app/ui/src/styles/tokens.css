@@ -23,7 +23,7 @@
   --ink: #121917;
   --ink-2: #36413e;
   --ink-3: #59645f;
-  --muted: #77817c;
+  --muted: #5c6663;         /* 5.33:1 on canvas — AA for small text */
 
   --line: #dfe2db;
   --line-strong: #c8cec3;

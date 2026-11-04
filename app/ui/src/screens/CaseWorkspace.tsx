@@ -6,7 +6,7 @@ import { Dialog } from '../components/overlays';
 import { Icon } from '../components/Icons';
 import { timeAgo } from '../lib/format';
 
-export function CaseWorkspace({ workspace, onOpenCommitment, onOpenCase, issueKey }: ScreenProps & { issueKey: string }) {
+export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, issueKey }: ScreenProps & { issueKey: string }) {
   const issue = workspace.issues.find((i) => i.key === issueKey) ?? workspace.issues[0];
   const [closureOpen, setClosureOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onOpenCase, issueKe
     <div className="case">
       <div className="case__main">
         <div style={{ marginBottom: 18 }}>
-          <button className="btn btn--quiet btn--sm" onClick={() => onOpenCase('')} style={{ marginLeft: -8 }}>
+          <button className="btn btn--quiet btn--sm" onClick={() => onNavigate('overview')} style={{ marginLeft: -8 }}>
             <Icon name="arrow" size={13} style={{ transform: 'rotate(180deg)' }} /> All cases
           </button>
         </div>

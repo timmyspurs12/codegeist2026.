@@ -88,6 +88,30 @@ condition has not yet been shown to behave on the portal the way the built-in ru
 | Static render of all six screens with content assertions (`npm run check:render`) | all pass; no `Invalid Date`, `NaN`, `undefined` or `[object Object]` in output |
 | Dev server | running, served for inspection |
 
+### Review passes
+
+Two review passes were done over the rendered markup and the CSS. They were **not** done on
+pixels, because no browser was available; the honest description is "reviewed as rendered
+text and computed styles", not "reviewed visually".
+
+Pass 1 (legibility and truth):
+- `--muted` measured at 3.61:1 and used for timestamps and eyebrows — below AA. Changed to
+  `#5C6663` (5.3:1) everywhere it is used.
+- The workspace subtitle was hardcoded to "Northgate Housing"; it now reads from the
+  workspace.
+- Settings had an editable workspace-name field that saved nothing. It now has an explicit
+  Save with a disabled state, and the read-only Jira site is rendered as a value, not an input.
+- `g o / g i / g a / g s` shortcuts were advertised in the palette but not wired. They are now
+  implemented (with a 1.2 s chord window) rather than the hint removed, because navigation by
+  keyboard is part of the product's claim to be a working surface.
+
+Pass 2 (density and copy):
+- A commitment six hours overdue rendered as "Due today" beside an `Overdue` lozenge, because
+  the day count was rounded. Fixed to count elapsed time, so late work always reads as late.
+- The capture inbox printed the author and age twice, once in the section head and once in the
+  source block. The section head now says something useful instead of repeating.
+- The blocked-case rows had an unstyled chevron; it now has hover and rest colours.
+
 **Not performed: visual inspection in a browser.** Chromium could not be installed
 (egress allowlist blocks the Playwright download), so no screenshots exist and none are
 claimed. Layout, typography and density have been reasoned about from the CSS and reviewed

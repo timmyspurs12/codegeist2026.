@@ -117,8 +117,21 @@ via the token layer, so the product degrades to instant rather than to "less smo
   `aria-checked` on switches, `role="switch"`, `aria-live="polite"` on toasts.
 - Status is never colour-only: every lozenge has a word and a shape; the baton nodes carry a
   state word in the card body.
-- Contrast: body ink on canvas is 13.4:1; muted text is kept at ≥ 4.6:1; amber is never used
-  for text on white (the `--sodium-ink` variant exists for that).
+- Contrast, measured rather than asserted (WCAG relative luminance):
+
+  | Pair | Ratio |
+  |---|---|
+  | body ink on canvas | 16.0:1 |
+  | secondary ink on canvas | 9.5:1 |
+  | tertiary ink on canvas | 5.5:1 |
+  | muted (timestamps, labels) on canvas | **5.3:1** |
+  | muted on white | 5.9:1 |
+  | shell ink on shell | 13.8:1 |
+  | status inks on their own washes | 6.3–6.8:1 |
+  | ink on the sodium button | 7.5:1 |
+
+  The muted grey started at `#77817C` (3.61:1) and was darkened after measurement —
+  it failed AA for the small text it is used on.
 - Dialogs and drawers close on Escape and restore the page scroll lock.
 
 ---

@@ -37,7 +37,7 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
     <div className="page">
       <header className="page__head">
         <div>
-          <div className="page__eyebrow">Northgate Housing · Repairs desk</div>
+          <div className="page__eyebrow">{workspace.name} · {workspace.plan}</div>
           <h1 className="page__title">What needs a decision today</h1>
           <p className="page__sub">
             Commitments made to tenants and to each other, tracked to evidence. A case cannot close while anything
@@ -45,7 +45,7 @@ export function Overview({ workspace, onOpenCase, onOpenCommitment, onNavigate }
           </p>
         </div>
         <div className="page__actions">
-          <Button icon="inbox" onClick={() => onNavigate('inbox')}>Review {awaiting} captures</Button>
+          <Button icon="inbox" onClick={() => onNavigate('inbox')}>{awaiting > 0 ? `Review ${awaiting} capture${awaiting > 1 ? 's' : ''}` : 'Open capture inbox'}</Button>
         </div>
       </header>
 

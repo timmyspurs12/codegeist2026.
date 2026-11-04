@@ -49,12 +49,33 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    let pendingG = false;
+    let timer: number | undefined;
+
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
+        return;
       }
-      if (e.key === 'Escape') setPaletteOpen(false);
+      if (e.key === 'Escape') { setPaletteOpen(false); return; }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'g') {
+        pendingG = true;
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => { pendingG = false; }, 1200);
+        return;
+      }
+      if (pendingG) {
+        const map: Record<string, Route> = { o: 'overview', i: 'inbox', a: 'activity', s: 'settings', c: 'case' };
+        if (map[key]) { e.preventDefault(); setRoute(map[key]); }
+        pendingG = false;
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -176,7 +197,14 @@ export function App() {
               <Icon name={mode === 'live' ? 'link' : 'alert'} size={12} />
               {mode === 'live' ? 'Live Jira data' : 'Fixture data'}
             </span>
-            <Button size="sm" variant="quiet" icon="inbox" onClick={() => setRoute('inbox')}>
+            <Button
+              size="sm"
+              variant="quiet"
+              icon="inbox"
+              onClick={() => setRoute('inbox')}
+              aria-label={`Capture inbox: ${counts.inbox} awaiting review`}
+              title={`${counts.inbox} capture${counts.inbox === 1 ? '' : 's'} awaiting review`}
+            >
               {counts.inbox}
             </Button>
           </header>
