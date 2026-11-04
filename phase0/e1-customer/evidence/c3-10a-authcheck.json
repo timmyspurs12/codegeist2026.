@@ -1,0 +1,22 @@
+{
+  "label": "c3-10a-authcheck",
+  "capturedAt": "2026-11-04T19:29:22.277Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": [
+    {
+      "id": "111",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    }
+  ],
+  "listBodyRaw": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": null,
+  "endpoint": "rest/api/3 (agent transitions)",
+  "statusAfter": "In Progress"
+}

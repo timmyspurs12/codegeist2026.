@@ -1,0 +1,25 @@
+{
+  "label": "c3-4-customer-blocking-2",
+  "capturedAt": "2026-11-04T10:17:58.906Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "Resolved",
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": null,
+  "transitionIsListed": false,
+  "endpoint": "servicedeskapi (customer transitions)",
+  "transitionIdTried": "Resolved",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessage": "This request is invalid. Check that the request contains all the required parameters and that the parameters are valid.",
+    "i18nErrorMessage": {
+      "i18nKey": "sd.rest.error.bad.request",
+      "parameters": []
+    }
+  },
+  "outcome": "refused_by_jira",
+  "validatorRan": "no",
+  "relayMessage": null,
+  "statusAfter": "In Progress"
+}

@@ -1,0 +1,28 @@
+{
+  "label": "c3-12-post-revert-agent",
+  "capturedAt": "2026-11-04T20:13:14.200Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": [
+    {
+      "id": "111",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    },
+    {
+      "id": "121",
+      "name": "Resolved",
+      "to": "Done",
+      "hasScreen": true
+    }
+  ],
+  "listBodyRaw": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": null,
+  "endpoint": "rest/api/3 (agent transitions)",
+  "statusAfter": "In Progress"
+}

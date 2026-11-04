@@ -1,0 +1,26 @@
+{
+  "label": "c3-5-customer-blocking-2",
+  "capturedAt": "2026-11-04T10:42:50.451Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "121",
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": false,
+  "endpoint": "servicedeskapi (customer transitions)",
+  "transitionIdTried": "121",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessage": "You can not make this transition",
+    "i18nErrorMessage": {
+      "i18nKey": "sd.customer.transition.error.transition.unavailable",
+      "parameters": []
+    }
+  },
+  "outcome": "refused_by_jira",
+  "validatorRan": "no",
+  "relayMessage": null,
+  "statusAfter": "In Progress"
+}

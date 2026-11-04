@@ -1,0 +1,33 @@
+{
+  "label": "c3-10-agent-condition",
+  "capturedAt": "2026-11-04T19:44:05.381Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "121",
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": [
+    {
+      "id": "111",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    }
+  ],
+  "listBodyRaw": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": false,
+  "endpoint": "rest/api/3 (agent transitions)",
+  "transitionIdTried": "121",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessages": [
+      "Can't move (FS-2). You might not have permission, or the work item is missing required information. If you keep having this problem, contact your Jira Administrator."
+    ],
+    "errors": {}
+  },
+  "outcome": "refused_by_jira",
+  "validatorRan": "no",
+  "relayMessage": null,
+  "statusAfter": "In Progress"
+}

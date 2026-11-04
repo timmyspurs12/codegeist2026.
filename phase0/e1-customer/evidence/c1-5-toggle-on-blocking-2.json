@@ -1,0 +1,42 @@
+{
+  "label": "c1-5-toggle-on-blocking-2",
+  "capturedAt": "2026-11-04T09:54:51.121Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-1",
+  "transitionArg": "Mark as done",
+  "resolution": "Done",
+  "statusBefore": "Reopened",
+  "transitionsOffered": [
+    {
+      "id": "11",
+      "name": "Start progress",
+      "to": "Work in progress",
+      "hasScreen": true
+    },
+    {
+      "id": "41",
+      "name": "Pending",
+      "to": "Pending",
+      "hasScreen": true
+    },
+    {
+      "id": "61",
+      "name": "Mark as done",
+      "to": "Done",
+      "hasScreen": true
+    }
+  ],
+  "transitionIsListed": true,
+  "transitionIdTried": "61",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessages": [
+      "Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)"
+    ],
+    "errors": {}
+  },
+  "outcome": "refused_by_relay",
+  "validatorRan": "yes",
+  "relayMessage": "Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)",
+  "statusAfter": "Reopened"
+}

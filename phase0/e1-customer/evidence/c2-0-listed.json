@@ -1,0 +1,25 @@
+{
+  "label": "c2-0-listed",
+  "capturedAt": "2026-11-04T10:04:43.963Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "To Do",
+  "transitionsOffered": [
+    {
+      "id": "81",
+      "name": "Start",
+      "to": "In Progress",
+      "hasScreen": false
+    },
+    {
+      "id": "91",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    }
+  ],
+  "transitionIsListed": null,
+  "statusAfter": "To Do"
+}

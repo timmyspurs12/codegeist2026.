@@ -1,0 +1,27 @@
+{
+  "label": "c3-11-customer-condition",
+  "capturedAt": "2026-11-04T19:44:08.958Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "121",
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": [],
+  "listBodyRaw": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": false,
+  "endpoint": "servicedeskapi (customer transitions)",
+  "transitionIdTried": "121",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessage": "You can not make this transition",
+    "i18nErrorMessage": {
+      "i18nKey": "sd.customer.transition.error.transition.unavailable",
+      "parameters": []
+    }
+  },
+  "outcome": "refused_by_jira",
+  "validatorRan": "no",
+  "relayMessage": null,
+  "statusAfter": "In Progress"
+}

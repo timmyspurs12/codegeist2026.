@@ -1,0 +1,19 @@
+{
+  "label": "c1-0-before-toggle",
+  "capturedAt": "2026-11-04T09:42:46.393Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-1",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "Done",
+  "transitionsOffered": [
+    {
+      "id": "71",
+      "name": "Reopen issue",
+      "to": "Reopened",
+      "hasScreen": false
+    }
+  ],
+  "transitionIsListed": null,
+  "statusAfter": "Done"
+}

@@ -1,0 +1,31 @@
+{
+  "label": "c2-1-start",
+  "capturedAt": "2026-11-04T10:06:20.520Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "Start",
+  "resolution": null,
+  "statusBefore": "To Do",
+  "transitionsOffered": [
+    {
+      "id": "81",
+      "name": "Start",
+      "to": "In Progress",
+      "hasScreen": false
+    },
+    {
+      "id": "91",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    }
+  ],
+  "transitionIsListed": true,
+  "transitionIdTried": "81",
+  "attemptHttpStatus": 204,
+  "attemptBody": null,
+  "outcome": "allowed",
+  "validatorRan": "unknown",
+  "relayMessage": null,
+  "statusAfter": "In Progress"
+}

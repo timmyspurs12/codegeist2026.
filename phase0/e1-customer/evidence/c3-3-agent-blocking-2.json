@@ -1,0 +1,37 @@
+{
+  "label": "c3-3-agent-blocking-2",
+  "capturedAt": "2026-11-04T10:17:54.581Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": "Resolved",
+  "resolution": "Done",
+  "statusBefore": "In Progress",
+  "transitionsOffered": [
+    {
+      "id": "111",
+      "name": "In review",
+      "to": "Pending",
+      "hasScreen": false
+    },
+    {
+      "id": "121",
+      "name": "Resolved",
+      "to": "Done",
+      "hasScreen": true
+    }
+  ],
+  "transitionIsListed": true,
+  "endpoint": "rest/api/3 (agent transitions)",
+  "transitionIdTried": "121",
+  "attemptHttpStatus": 400,
+  "attemptBody": {
+    "errorMessages": [
+      "Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)"
+    ],
+    "errors": {}
+  },
+  "outcome": "refused_by_relay",
+  "validatorRan": "yes",
+  "relayMessage": "Relay has unresolved promises attached to this case. Review the obligation ledger before closing it. (2 unresolved: 1 with no owner, 1 overdue)",
+  "statusAfter": "In Progress"
+}

@@ -1,0 +1,15 @@
+{
+  "label": "c3-6-customer-listed",
+  "capturedAt": "2026-11-04T11:01:21.385Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "In Progress",
+  "transitionsOffered": null,
+  "listBodyRaw": "{\"size\":1,\"start\":0,\"limit\":50,\"isLastPage\":true,\"_links\":{\"self\":\"https://onepes930.atlassian.net/rest/servicedeskapi/request/FS-2/transition\",\"base\":\"https://onepes930.atlassian.net\",\"context\":\"\"},\"values\":[{\"id\":\"121\",\"name\":\"Resolved\"}]}",
+  "listHttpStatus": 200,
+  "transitionIsListed": null,
+  "endpoint": "servicedeskapi (customer transitions)",
+  "statusAfter": "In Progress"
+}

@@ -1,0 +1,22 @@
+{
+  "label": "c3-8-agent-listed-after-done",
+  "capturedAt": "2026-11-04T11:12:58.151Z",
+  "site": "https://onepes930.atlassian.net",
+  "issueKey": "FS-2",
+  "transitionArg": null,
+  "resolution": null,
+  "statusBefore": "Done",
+  "transitionsOffered": [
+    {
+      "id": "141",
+      "name": "Reopened",
+      "to": "In Progress",
+      "hasScreen": false
+    }
+  ],
+  "listBodyRaw": null,
+  "listHttpStatus": 200,
+  "transitionIsListed": null,
+  "endpoint": "rest/api/3 (agent transitions)",
+  "statusAfter": "Done"
+}
