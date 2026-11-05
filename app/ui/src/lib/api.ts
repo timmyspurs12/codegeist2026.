@@ -1,4 +1,4 @@
-import type { DataMode, Issue, Workspace } from './types';
+import type { DataMode, FieldSet, Issue, ManagementState, Workspace } from './types';
 import { fixtureWorkspace } from '../fixtures/workspace';
 import { computeClosure } from './closure';
 
@@ -102,10 +102,9 @@ export type ScanResult = {
 };
 
 export type FieldResolution = {
-  field: {
-    moduleKey: string; name: string; typeId: string | null; id: string | null; key: string | null;
-    resolved: boolean; resolvedAt: string | null; expression: string; manifestLine: string; placeholder: string;
-  };
+  /** Both app-owned fields, plus the expression that reads them. */
+  field: FieldSet;
+  fields: FieldSet;
   expression: string;
   manifestLine: string;
   appliedExpression: string | null;
@@ -118,8 +117,52 @@ export type ReconcileResult = {
   attempted: number;
   repaired: number;
   alreadyInStep: number;
-  failed: { key: string; error: string }[];
+  failed: { key: string; stage: string; error: string }[];
+  report: {
+    inSync: string[];
+    repaired: { key: string; state: string; open: number | null }[];
+    noLedger: string[];
+    initializing: string[];
+    failed: { key: string; stage: string; error: string }[];
+    inaccessible: { key: string; error: string }[];
+    unmanaged: string[];
+  };
   ok: boolean;
+  note: string | null;
+};
+
+/** The console's view of the management lifecycle after Track. */
+export type TrackResult = {
+  status: 'managed' | 'already_managed' | 'failed';
+  state: ManagementState;
+  stage?: string;
+  error?: string;
+  created?: { code: string; quote: string; confidence: number }[];
+  duplicates?: number;
+  steps: { stage: string; at: string; failedStage?: string; error?: string }[];
+};
+
+export type UntrackResult = {
+  status: 'unmanaged' | 'confirmation_required' | 'not_tracked' | 'failed';
+  state: ManagementState;
+  open: number | null;
+  requiresConfirmation?: boolean;
+  message?: string;
+  stage?: string;
+  error?: string;
+  steps?: { stage: string; at: string }[];
+};
+
+/** One page of the backfill. Resumable: pass `nextPageToken` back as `cursor`. */
+export type BackfillResult = {
+  jql: string;
+  done: boolean;
+  nextPageToken: string | null;
+  scanned: number;
+  initialised: string[];
+  skipped: { key: string; state: ManagementState }[];
+  failed: { key: string; error: string }[];
+  fields: FieldSet;
   note: string | null;
 };
 
@@ -127,13 +170,16 @@ export type EnforcementCheck = {
   key: string;
   allowed: boolean;
   code: string;
+  state: ManagementState;
   message: string | null;
   counts: { open: number; overdue: number; unowned: number; awaitingReview: number } | null;
   stale: boolean;
   ledgerRev: number | null;
+  recordState: ManagementState;
   projection: Record<string, unknown> | null;
   field: number | null;
-  fieldInfo?: FieldResolution['field'] | null;
+  stateField: ManagementState;
+  fieldInfo?: FieldSet | null;
   syncError: string | null;
   diagnostics: { level: 'info' | 'warn' | 'error'; code: string; message: string }[];
 };
@@ -225,14 +271,36 @@ export const api = {
     };
   },
 
-  /** Track an issue so it appears in the workspace. */
-  async track(key: string): Promise<Workspace> {
+  /**
+   * Track an issue: run the management lifecycle (initialising → capture →
+   * managed) and return what happened, step by step.
+   */
+  async track(key: string): Promise<{ workspace: Workspace; track: TrackResult }> {
     if (invokeRemote) {
-      const res = (await invokeRemote('relay.workspace.track', { key })) as { workspace: Workspace };
+      const res = (await invokeRemote('relay.workspace.track', { key })) as { workspace: Workspace; track: TrackResult };
       store = res.workspace;
-      return clone(store);
+      return { workspace: clone(store), track: res.track };
     }
     throw new Error('Fixture mode: tracking a Jira issue needs the Forge bridge.');
+  },
+
+  /**
+   * Stop managing an issue. Without `confirm` the server answers with a
+   * confirmation describing what will be left behind, and changes nothing.
+   */
+  async untrack(key: string, options: { confirm?: boolean; reason?: string } = {}): Promise<{ workspace: Workspace; untrack: UntrackResult }> {
+    if (invokeRemote) {
+      const res = (await invokeRemote('relay.workspace.untrack', { key, ...options })) as { workspace: Workspace; untrack: UntrackResult };
+      store = res.workspace;
+      return { workspace: clone(store), untrack: res.untrack };
+    }
+    throw new Error('Fixture mode: offboarding a Jira issue needs the Forge bridge.');
+  },
+
+  /** Record every issue in a project as unmanaged, one page at a time. */
+  async backfill(projectKey: string, cursor: string | null = null, max = 25): Promise<BackfillResult> {
+    if (!invokeRemote) throw new Error('Fixture mode: the backfill needs the Forge bridge.');
+    return (await invokeRemote('relay.workspace.init', { projectKey, cursor, max })) as BackfillResult;
   },
 
   async settings(): Promise<Record<string, unknown>> {
@@ -264,9 +332,10 @@ export const api = {
         enforcement: {
           ...store.integrations.enforcement,
           field: res.field,
-          fieldId: res.field.id,
-          fieldKey: res.field.key,
-          fieldTypeId: res.field.typeId,
+          fields: { count: res.field.count, state: res.field.state },
+          fieldId: res.field.count.id,
+          fieldKey: res.field.count.key,
+          fieldTypeId: res.field.count.typeId,
           fieldResolved: res.field.resolved,
           conditionExpression: res.field.expression,
           manifestLine: res.field.manifestLine,
@@ -289,7 +358,10 @@ export const api = {
     return {
       key: issue.key,
       allowed: issue.closure.ready,
-      code: issue.closure.ready ? 'clear' : 'blocked',
+      code: issue.closure.decisionCode ?? (issue.closure.ready ? 'clear' : 'blocked'),
+      state: issue.management.state,
+      recordState: issue.management.state,
+      stateField: issue.management.state,
       message: issue.closure.validatorMessage,
       counts: {
         open: issue.closure.blockingCount,

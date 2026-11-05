@@ -112,6 +112,40 @@ export function App() {
     }
   }, [replaceIssue, toast]);
 
+  /** Run the management lifecycle. The server decides the outcome; we report it. */
+  const trackIssue = useCallback(async (key: string) => {
+    try {
+      const { workspace: next, track } = await api.track(key);
+      setWorkspace(next);
+      toast(
+        track.status === 'managed'
+          ? `${key} is now managed — ${track.created?.length ?? 0} commitment(s) captured.`
+          : track.status === 'already_managed'
+            ? `${key} was already managed; its fields were re-verified.`
+            : `${key} did not finish (${track.stage ?? 'unknown'}). It stays withheld until track completes.`,
+        track.status === 'failed' ? 'overdue' : 'verified',
+      );
+    } catch (err) {
+      toast(`Track failed: ${err instanceof Error ? err.message : String(err)}`, 'overdue');
+    }
+  }, [toast]);
+
+  /** Offboarding, already confirmed by the caller. */
+  const untrackIssue = useCallback(async (key: string, reason: string) => {
+    try {
+      const { workspace: next, untrack } = await api.untrack(key, { confirm: true, reason });
+      setWorkspace(next);
+      toast(
+        untrack.status === 'unmanaged'
+          ? `${key} is unmanaged. The ledger and audit trail are kept.`
+          : `Offboarding ${key} did not finish (${untrack.stage ?? 'unknown'}); it stays withheld.`,
+        untrack.status === 'unmanaged' ? 'default' : 'overdue',
+      );
+    } catch (err) {
+      toast(`Offboarding failed: ${err instanceof Error ? err.message : String(err)}`, 'overdue');
+    }
+  }, [toast]);
+
   const counts = useMemo(() => {
     if (!workspace) return { inbox: 0, blocked: 0 };
     let inbox = 0, blocked = 0;
@@ -217,6 +251,8 @@ export function App() {
               toast={toast}
               onNavigate={go}
               onScan={scanIssue}
+              onTrack={trackIssue}
+              onUntrack={untrackIssue}
               onAccept={async (k, code, ownerId, dueAt) => {
                 replaceIssue(await api.accept(k, code, ownerId, dueAt));
                 toast(`${code} accepted. Closure re-evaluated for ${k}.`, 'verified');

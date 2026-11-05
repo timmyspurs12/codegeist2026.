@@ -9,9 +9,9 @@
  * every issue came from Jira and every commitment came from Relay's ledger.
  */
 import { counts, isOverdue, isUnresolved } from './ledger.js';
-import { decideGate } from './gate.js';
+import { decideClosure } from './gate.js';
 import { PROJECTION_KEY } from './projection.js';
-import { CLOSURE_FIELD_PLACEHOLDER, closureExpression, describeField } from './field.js';
+import { CLOSURE_FIELD_PLACEHOLDER, STATE_FIELD_PLACEHOLDER, closureExpression, describeFields } from './field.js';
 
 export function toUiCommitment(issueKey, c, nowMs) {
   return {
@@ -64,20 +64,38 @@ export function reasonsFor(c) {
  */
 export function buildIssue({ issue, ledger, projection, decision, now, diagnostics = [] }) {
   const commitments = (ledger?.commitments ?? []).map((c) => toUiCommitment(issue.key, c, now.getTime()));
-  const stale = Boolean(decision.stale);
+  // A guard projection is deliberately pessimistic: it is written before the
+  // commit and says "blocked". Reading it back as "fresh" would be a lie about
+  // why the field is high, so it is reported as stale until reconciled.
+  const stale = Boolean(decision.stale || projection?.guard);
   // "Relay has never looked at this issue" and "Relay cannot read this issue's
   // ledger" are different states and must not be conflated. An untracked issue
   // has nothing for Relay to block on; a ledger that exists but cannot be read
   // is a failure, and `decideGate` already answers that one with `unavailable`.
-  const untracked = ledger === null || ledger === undefined;
-  const reasons = decision.counts ? reasonsFor(decision.counts) : ['Relay could not read this case’s commitment ledger, so closure is blocked rather than allowed.'];
+  const reasons = decision.counts
+    ? reasonsFor(decision.counts)
+    : [decision.message ?? 'Relay could not read this case’s commitment ledger, so closure is blocked rather than allowed.'];
+  // The management state is a first-class part of the contract in P2.2: a case
+  // Relay does not manage is permitted for a different reason than one it
+  // manages and has cleared, and the console says which.
+  const state = ledger?.state ?? null;
+  const managed = state === 'managed';
+  const unmanaged = state === 'unmanaged';
+  const initializing = state === 'initializing';
 
   if (!ledger) {
     diagnostics.push({
-      level: 'info',
-      code: 'no_ledger',
+      level: 'warn',
+      code: 'no_record',
       issueKey: issue.key,
-      message: 'Relay has not captured any commitments on this case yet.',
+      message: 'Relay has no record for this case, so it has no management state and closure is withheld. Run Backfill, or Track this issue.',
+    });
+  } else if (initializing) {
+    diagnostics.push({
+      level: 'warn',
+      code: 'initializing',
+      issueKey: issue.key,
+      message: 'Relay is initialising this case: capture did not finish, so closure is withheld until Track completes.',
     });
   }
   if (stale && ledger) {
@@ -106,13 +124,23 @@ export function buildIssue({ issue, ledger, projection, decision, now, diagnosti
     // the ledger but could not update the projection or field is visible where
     // the decision is shown, not only in a log.
     diagnostics,
+    management: {
+      state,
+      managed,
+      unmanaged,
+      initializing,
+      known: Boolean(ledger),
+      label: !ledger ? 'No record' : unmanaged ? 'Not managed by Relay' : initializing ? 'Initialising' : 'Managed by Relay',
+    },
     closure: {
-      ready: untracked ? true : decision.allow,
+      // Readiness is the decision, not the absence of a ledger. P2.1 treated an
+      // untracked issue as ready, which is exactly the fail-open P2.2 removes.
+      ready: decision.allow,
       blockingCount: decision.counts?.open ?? 0,
       overdue: decision.counts?.overdue ?? 0,
       unowned: decision.counts?.unowned ?? 0,
       awaitingReview: decision.counts?.awaitingReview ?? 0,
-      reasons: untracked || decision.allow ? [] : reasons,
+      reasons: decision.allow ? [] : reasons,
       evaluatedAt: now.toISOString(),
       projection: {
         kind: 'issue-property',
@@ -121,9 +149,13 @@ export function buildIssue({ issue, ledger, projection, decision, now, diagnosti
         syncedAt: projection?.updatedAt ?? null,
         stale,
       },
-      validatorMessage: untracked ? null : decision.message,
-      conditionMessage: decision.allow ? null : 'Customer closure is withheld while commitments are unresolved. The condition cannot explain why.',
-      decisionCode: untracked ? 'untracked' : decision.code,
+      validatorMessage: decision.allow ? null : decision.message,
+      conditionMessage: decision.allow
+        ? null
+        : unmanaged
+          ? null
+          : 'Customer closure is withheld while Relay is initialising this case or commitments are unresolved. The condition cannot explain why.',
+      decisionCode: decision.code,
     },
   };
 }
@@ -157,10 +189,11 @@ export function mergeActivity(trails, limit = 250) {
     .slice(0, limit);
 }
 
-export function conditionExpression(fieldId) {
+export function conditionExpression(fieldIds) {
   // One builder, in field.js, so the manifest, the console and the tests cannot
   // disagree about what the condition evaluates.
-  return closureExpression(fieldId ?? CLOSURE_FIELD_PLACEHOLDER);
+  if (typeof fieldIds === 'string') return closureExpression({ count: fieldIds });
+  return closureExpression(fieldIds ?? { count: CLOSURE_FIELD_PLACEHOLDER, state: STATE_FIELD_PLACEHOLDER });
 }
 
 export const PORTAL_NOTE =
@@ -192,7 +225,7 @@ export async function buildWorkspace({ jira, store, settings, context, now, log 
           message: `The closure projection could not be read (${err.message}). Closure is treated as blocked.`,
         });
       }
-      const decision = decideGate(ledger, projection, { nowMs: now.getTime() });
+      const decision = decideClosure({ ledger, projection, nowMs: now.getTime() });
       issues.push(buildIssue({ issue, ledger, projection, decision, now, diagnostics }));
       trails.push(await store.readAudit(entry.key));
       projectKeys.add(entry.key.split('-')[0]);
@@ -206,7 +239,7 @@ export async function buildWorkspace({ jira, store, settings, context, now, log 
   }
 
   const people = await collectPeople({ jira, issues, context });
-  const closureField = describeField(field ?? {});
+  const closureField = describeFields(field ?? {});
 
   return {
     workspace: {
@@ -246,6 +279,9 @@ export async function buildWorkspace({ jira, store, settings, context, now, log 
           fieldKey: closureField.key,
           fieldTypeId: closureField.typeId,
           fieldResolved: closureField.resolved,
+          // Both app-owned fields. `resolved` is true only when Jira has
+          // returned an id for each, because the condition reads both.
+          fields: { count: closureField.count, state: closureField.state },
           manifestLine: closureField.manifestLine,
           expressionApplied: settings.closureExpressionApplied ?? null,
         },

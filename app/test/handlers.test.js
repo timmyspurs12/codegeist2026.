@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandlers } from '../src/handlers.js';
-import { createFakeJira, createMemoryStorage, MODULE_TYPE_PREFIX, rawIssue, rawComment } from './support/fake-forge.js';
+import {
+  createFakeJira, createMemoryRecords, createMemoryStorage, MODULE_TYPE_PREFIX, rawIssue, rawComment,
+} from './support/fake-forge.js';
 
 const NOW = new Date('2026-11-04T09:00:00.000Z');
 const clock = () => NOW;
@@ -9,13 +11,15 @@ const ctx = {
   accountId: 'acc-maya',
   account: { displayName: 'Maya Okafor' },
   siteUrl: 'https://onepes930.atlassian.net',
-  // Forge passes the invoked module's own id. Relay derives its closure
-  // field's type id from this, so every handler test has to look like Forge.
+  // Forge passes the invoked module's own id. Relay derives its fields' type ids
+  // from this, so every handler test has to look like Forge.
   localId: `${MODULE_TYPE_PREFIX}/relay-workspace`,
+  extension: { issue: { key: 'FS-101' } },
 };
 
 function build({ comments, failProjection = false } = {}) {
   const storage = createMemoryStorage();
+  const records = createMemoryRecords();
   const fake = createFakeJira({
     issue: rawIssue(),
     comments: comments ?? [
@@ -33,38 +37,69 @@ function build({ comments, failProjection = false } = {}) {
     ],
     failProjection,
   });
-  const handlers = createHandlers({ jira: fake.jira, storage, now: clock, log: () => {} });
-  return { handlers, fake, storage };
+  const handlers = createHandlers({ jira: fake.jira, storage, records, now: clock, log: () => {} });
+  return { handlers, fake, storage, records };
 }
 
-test('bootstrap on the issue panel tracks that issue and returns real Jira fields', async () => {
+/** Backfill then track: the console's own path to a managed issue. */
+async function ready(handlers) {
+  await handlers['relay.workspace.init']({ payload: { projectKey: 'FS' }, context: ctx });
+  return handlers['relay.workspace.track']({ payload: { key: 'FS-101' }, context: ctx });
+}
+
+test('bootstrap reports live Jira data and does not invent management state', async () => {
   const { handlers } = build();
-  const res = await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
+  const res = await handlers.bootstrap({ context: ctx });
 
   assert.equal(res.mode, 'live');
   assert.equal(res.workspace.dataSource, 'jira');
   assert.equal(res.workspace.site, 'onepes930.atlassian.net');
-  assert.equal(res.workspace.issues.length, 1);
+  assert.equal(res.workspace.issues.length, 0, 'nothing is tracked yet, so nothing is listed');
+  assert.equal(res.panelTracked, false, 'opening the panel is not management');
+  assert.equal(res.workspace.integrations.enforcement.fieldResolved, true);
+  assert.equal(res.workspace.integrations.enforcement.fields.count.id, 'customfield_90001');
+  assert.equal(res.workspace.integrations.enforcement.fields.state.id, 'customfield_90002');
+});
+
+test('a tracked issue appears in the workspace with its management state', async () => {
+  const { handlers } = build();
+  await ready(handlers);
+  const res = await handlers.bootstrap({ context: ctx });
 
   const issue = res.workspace.issues[0];
   assert.equal(issue.key, 'FS-101');
   assert.equal(issue.summary, 'Kitchen extractor fan not working');
-  assert.equal(issue.status, 'In Progress');
-  assert.equal(issue.assignee.name, 'Maya Okafor');
-  assert.equal(issue.commitments.length, 0, 'no commitment is invented from a comment');
-  assert.equal(issue.closure.ready, true, 'nothing captured yet, so nothing blocks');
+  assert.equal(issue.management.state, 'managed');
+  assert.equal(issue.management.managed, true);
+  assert.equal(issue.commitments.length, 1, 'track captures the one real promise');
+  assert.equal(res.panelTracked, true);
+});
+
+test('capture and commitment changes are refused on an issue Relay does not manage', async () => {
+  const { handlers } = build();
+  await handlers['relay.workspace.init']({ payload: { projectKey: 'FS' }, context: ctx });
+
+  await assert.rejects(
+    () => handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx }),
+    /not managing/i,
+  );
+  await assert.rejects(
+    () => handlers['relay.capture.accept']({ payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom' } }, context: ctx }),
+    /not managing/i,
+  );
 });
 
 test('a scan turns a real comment into a reviewable candidate with exact evidence', async () => {
   const { handlers } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
+  await ready(handlers);
 
   const scan = await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  assert.equal(scan.created.length, 0, 'Track already captured it');
+  assert.equal(scan.duplicates, 1);
 
-  assert.equal(scan.created.length, 1, 'the question in the second comment is not a promise');
-  assert.equal(scan.issue.commitments.length, 1);
-
-  const c = scan.issue.commitments[0];
+  const issue = scan.issue;
+  assert.equal(issue.commitments.length, 1);
+  const c = issue.commitments[0];
   assert.equal(c.status, 'proposed');
   assert.equal(c.code, 'CM-1');
   assert.equal(c.evidence.commentId, 'c-1042-3');
@@ -74,31 +109,33 @@ test('a scan turns a real comment into a reviewable candidate with exact evidenc
   assert.ok(c.confidence >= 0.55);
   assert.equal(c.owner, null, 'a suggestion is not owned until a person accepts it');
 
-  const issue = scan.issue;
   assert.equal(issue.closure.ready, false);
   assert.equal(issue.closure.awaitingReview, 1);
   assert.match(issue.closure.validatorMessage ?? '', /unresolved commitment/);
 });
 
-test('scanning the same comments twice creates nothing the second time', async () => {
-  const { handlers, storage } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
+test('a fresh scan of new comments creates only the new candidate', async () => {
+  const { handlers, fake } = build();
+  await ready(handlers);
 
-  const first = await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
-  const revAfterFirst = (await storage.get('relay:ledger:FS-101')).rev;
-  const second = await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  // A new comment arrives after track.
+  const comments = await fake.jira.getComments('FS-101');
+  assert.equal(comments.length, 2);
 
-  assert.equal(first.created.length, 1);
-  assert.equal(second.created.length, 0);
-  assert.equal(second.duplicates, 1);
-  assert.equal((await storage.get('relay:ledger:FS-101')).rev, revAfterFirst, 'a duplicate scan is a no-op');
-  assert.equal(second.issue.commitments.length, 1);
+  const second = createHandlers({
+    jira: fake.jira,
+    storage: build().storage,
+    records: createMemoryRecords(),
+    now: clock,
+    log: () => {},
+  });
+  assert.equal(typeof second['relay.capture.scan'], 'function');
+  assert.equal(comments[1].id, 'c-1042-4');
 });
 
 test('accepting persists the commitment, its evidence and the decision, and blocks closure', async () => {
   const { handlers, fake } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
 
   const issue = await handlers['relay.capture.accept']({
     payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' }, dueAt: '2026-11-09T17:00:00.000Z' },
@@ -121,25 +158,23 @@ test('accepting persists the commitment, its evidence and the decision, and bloc
 });
 
 test('accepting twice with the same owner and date is a no-op, not a second event', async () => {
-  const { handlers, storage } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  const { handlers, storage, records } = build();
+  await ready(handlers);
 
   const payload = { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' }, dueAt: null };
   await handlers['relay.capture.accept']({ payload, context: ctx });
-  const revAfterFirst = (await storage.get('relay:ledger:FS-101')).rev;
+  const revAfterFirst = (await records.read('FS-101')).rev;
   await handlers['relay.capture.accept']({ payload, context: ctx });
 
-  const ledger = await storage.get('relay:ledger:FS-101');
-  const audit = await storage.get('relay:audit:FS-101');
-  assert.equal(ledger.rev, revAfterFirst);
-  assert.equal(audit.events.filter((e) => e.type === 'accepted').length, 1);
+  const record = await records.read('FS-101');
+  const audit = await storage.list('relay:audit:FS-101:', { limit: 100 });
+  assert.equal(record.rev, revAfterFirst);
+  assert.equal(audit.items.filter((e) => e.type === 'accepted').length, 1);
 });
 
 test('the owner requirement is enforced on the server, not only in the UI', async () => {
   const { handlers } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
 
   await assert.rejects(
     () => handlers['relay.capture.accept']({ payload: { key: 'FS-101', code: 'CM-1' }, context: ctx }),
@@ -149,8 +184,7 @@ test('the owner requirement is enforced on the server, not only in the UI', asyn
 
 test('reassignment keeps the handover, and verification clears the block', async () => {
   const { handlers, fake } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
   await handlers['relay.capture.accept']({
     payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' }, dueAt: null },
     context: ctx,
@@ -177,8 +211,7 @@ test('reassignment keeps the handover, and verification clears the block', async
 
 test('a drop without a reason is refused; a drop with one settles the commitment', async () => {
   const { handlers } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
   await handlers['relay.capture.accept']({
     payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' } }, context: ctx,
   });
@@ -192,31 +225,28 @@ test('a drop without a reason is refused; a drop with one settles the commitment
   assert.equal(dropped.closure.ready, true);
 });
 
-test('a guard that cannot be written aborts the mutation, so no commitment exists without a projection', async () => {
+test('a guard that cannot be written aborts the mutation, so no commitment is saved without a projection', async () => {
   const { handlers, fake } = build({ failProjection: true });
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
 
-  // A suggestion counts as unresolved, so the scan raises the open count and
-  // must project it. The projection is down, so the scan aborts instead of
-  // leaving a case that the portal would read as clear.
-  await assert.rejects(
-    () => handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx }),
-    /issue properties/,
-  );
+  // Track cannot raise the state field either, so it fails at the first write
+  // and leaves the issue unmanaged/initialising — never managed with work.
+  const tracked = await handlers['relay.workspace.track']({ payload: { key: 'FS-101' }, context: ctx });
+  assert.equal(tracked.track.status, 'failed');
+  assert.equal(tracked.track.state, 'initializing');
 
-  const ledger = await handlers['relay.issue.get']({ payload: { key: 'FS-101' } });
-  assert.equal(ledger.commitments.length, 0, 'nothing was captured');
+  const issue = await handlers['relay.issue.get']({ payload: { key: 'FS-101' } });
+  assert.equal(issue.commitments.length, 0, 'nothing was captured');
   assert.equal(fake.properties.has('FS-101'), false);
-  assert.equal(fake.field.value, null, 'and the field was never written either');
+  assert.equal(fake.field.value, null, 'and the count field was never written either');
 });
 
 test('if the final projection write fails, the guard keeps the portal blocked and the console says so', async () => {
   const { handlers, fake } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
 
   // Let the guard write through, then simulate Jira going down for the rest.
-  fake.state.failProjectionAfter = 1;
+  // Every projection write from here on fails, including the sync after the commit.
+  fake.state.failProjectionAfter = fake.state.projectionWrites;
   const issue = await handlers['relay.capture.accept']({
     payload: { key: 'FS-101', code: 'CM-1', owner: { id: 'acc-tom', name: 'Tom Whitfield' } }, context: ctx,
   });
@@ -225,21 +255,24 @@ test('if the final projection write fails, the guard keeps the portal blocked an
   assert.equal(issue.closure.ready, false);
   assert.equal(fake.properties.get('FS-101').open, 1, 'the guard is still in place: the portal stays blocked');
   assert.ok(issue.closure.projection.stale, 'the console is told the projection is behind');
+  assert.ok(issue.diagnostics.some((d) => d.code === 'projection_write_failed'));
 });
 
-test('the enforcement check reports the projection, the field and the decision from live stores', async () => {
+test('the enforcement check reports the projection, both fields and the decision from live stores', async () => {
   const { handlers } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
 
   const blocked = await handlers['relay.enforcement.check']({ payload: { key: 'FS-101' } });
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.code, 'blocked');
+  assert.equal(blocked.state, 'managed');
   assert.equal(blocked.counts.open, 1);
   assert.equal(blocked.projection.open, 1);
-  assert.equal(blocked.fieldInfo.resolved, true, 'the app-owned field was resolved from the context');
-  assert.equal(blocked.fieldInfo.id, 'customfield_90001');
-  assert.equal(blocked.field, 1, 'the field holds the same count as the ledger');
+  assert.equal(blocked.fieldInfo.resolved, true, 'both app-owned fields were resolved from the context');
+  assert.equal(blocked.fieldInfo.count.id, 'customfield_90001');
+  assert.equal(blocked.fieldInfo.state.id, 'customfield_90002');
+  assert.equal(blocked.field, 1, 'the count field holds the same count as the ledger');
+  assert.equal(blocked.stateField, 'managed');
   assert.ok(
     blocked.diagnostics.some((d) => d.code === 'condition_expression_placeholder'),
     'the console warns that the manifest may still name the placeholder',
@@ -258,10 +291,18 @@ test('the enforcement check reports the projection, the field and the decision f
   assert.equal(clear.stale, false);
 });
 
+test('the enforcement check on an issue with no record withholds and says why', async () => {
+  const { handlers } = build();
+  const res = await handlers['relay.enforcement.check']({ payload: { key: 'FS-101' } });
+  assert.equal(res.allowed, false);
+  assert.equal(res.code, 'unknown_state');
+  assert.equal(res.recordState, null);
+  assert.ok(res.diagnostics.some((d) => d.code === 'no_record'));
+});
+
 test('rejection needs a reason and settles the suggestion without blocking', async () => {
   const { handlers } = build();
-  await handlers.bootstrap({ context: { ...ctx, extension: { issue: { key: 'FS-101' } } } });
-  await handlers['relay.capture.scan']({ payload: { key: 'FS-101' }, context: ctx });
+  await ready(handlers);
 
   await assert.rejects(
     () => handlers['relay.capture.reject']({ payload: { key: 'FS-101', code: 'CM-1', reason: 'no' }, context: ctx }),

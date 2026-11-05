@@ -8,7 +8,35 @@
  * comment can be edited by anyone with comment permission.
  */
 
-export const LEDGER_VERSION = 1;
+export const LEDGER_VERSION = 2;
+
+/**
+ * Relay's management state for an issue.
+ *
+ * The state is *in the record*, next to the commitments, because a workflow
+ * condition that reads "does Relay manage this issue?" must be answerable from
+ * the same write that made the answer true. Three states, no more:
+ *
+ *   * `unmanaged`    — Relay explicitly does not manage this issue (backfill,
+ *                      issue created, or an offboarding that was confirmed).
+ *                      Closure is permitted and the count is irrelevant.
+ *   * `initializing` — Relay is capturing or the last capture did not finish.
+ *                      Closure is withheld on both paths.
+ *   * `managed`      — Relay's count is authoritative. Closure is permitted
+ *                      only when the count is exactly zero.
+ *
+ * An issue with no record has *no state*, which is not `unmanaged`: the brief is
+ * explicit that `missing` must never be treated as `unmanaged`, so every
+ * consumer of this module answers `unknown` and withholds.
+ */
+export const MANAGED = 'managed';
+export const UNMANAGED = 'unmanaged';
+export const INITIALIZING = 'initializing';
+export const MANAGED_STATES = Object.freeze([UNMANAGED, INITIALIZING, MANAGED]);
+
+export function isManagedState(state) {
+  return typeof state === 'string' && MANAGED_STATES.includes(state);
+}
 
 /**
  * A commitment record, as stored (not as displayed).
@@ -45,8 +73,8 @@ export const LEDGER_VERSION = 1;
  * }} Commitment
  */
 
-export function emptyLedger(issueKey, now = new Date().toISOString()) {
-  return { version: LEDGER_VERSION, rev: 0, issueKey, commitments: [], updatedAt: now };
+export function emptyLedger(issueKey, now = new Date().toISOString(), state = INITIALIZING) {
+  return { version: LEDGER_VERSION, rev: 0, issueKey, state, commitments: [], updatedAt: now };
 }
 
 /**

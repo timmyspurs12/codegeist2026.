@@ -5,10 +5,12 @@ import { Dialog } from '../components/overlays';
 import { Icon } from '../components/Icons';
 import { NOT_RECORDED, clock, timeAgo } from '../lib/format';
 
-export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan, issueKey }: ScreenProps & { issueKey: string }) {
+export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan, onTrack, onUntrack, issueKey }: ScreenProps & { issueKey: string }) {
   const issue = workspace.issues.find((i) => i.key === issueKey) ?? workspace.issues[0];
   const [expanded, setExpanded] = useState<string | null>(issue.commitments[0]?.code ?? null);
   const [closureOpen, setClosureOpen] = useState(false);
+  const [untrackOpen, setUntrackOpen] = useState(false);
+  const [untrackReason, setUntrackReason] = useState('');
 
   const unresolved = issue.commitments.filter((c) => c.status === 'open' || c.status === 'proposed');
   const caseEvents = workspace.activity.filter((e) => e.issueKey === issue.key);
@@ -46,6 +48,28 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan,
               <span>{issue.location}</span>
               <span style={{ color: 'var(--muted)' }}>{issue.requestType}</span>
               <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>updated {timeAgo(issue.updatedAt)}</span>
+            </div>
+            {/*
+              Management state is shown, not inferred. A case Relay does not
+              manage is permitted for a reason — and a case with no record is
+              withheld, not "unmanaged".
+            */}
+            <div className="casehead__meta" style={{ marginTop: 8 }}>
+              <Stamp tone={issue.management.managed ? 'verified' : 'open'}>
+                {issue.management.label}
+              </Stamp>
+              {issue.management.managed ? (
+                <Button size="sm" variant="quiet" onClick={() => setUntrackOpen(true)} disabled={!onUntrack}>
+                  Stop managing
+                </Button>
+              ) : (
+                <Button size="sm" icon="sync" onClick={() => onTrack?.(issue.key)} disabled={!onTrack}>
+                  Manage this case
+                </Button>
+              )}
+              {issue.management.initializing && (
+                <span className="section__note">Capture did not finish. Closure stays withheld until it does.</span>
+              )}
             </div>
           </header>
 
@@ -232,6 +256,33 @@ export function CaseWorkspace({ workspace, onOpenCommitment, onNavigate, onScan,
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={untrackOpen}
+        title={`Stop managing ${issue.key}?`}
+        confirmLabel="Stop managing"
+        tone="danger"
+        onCancel={() => { setUntrackOpen(false); setUntrackReason(''); }}
+        onConfirm={() => { setUntrackOpen(false); void onUntrack?.(issue.key, untrackReason.trim()); }}
+      >
+        <p>
+          Relay will set this case’s management state to <span className="mono">unmanaged</span>, which <strong>permits closure</strong> on
+          both the agent and customer paths, even though {issue.closure.blockingCount} unresolved commitment
+          {issue.closure.blockingCount === 1 ? '' : 's'} remain on the ledger.
+        </p>
+        <p>
+          The ledger and the audit trail are kept, and tracking the case again restores the count. The state field is written first,
+          so an offboarding that fails part-way leaves the case withheld rather than open.
+        </p>
+        <label className="field">
+          <span>Reason (recorded on the trail)</span>
+          <input
+            value={untrackReason}
+            onChange={(e) => setUntrackReason(e.target.value)}
+            placeholder="e.g. Customer moved to a new request"
+          />
+        </label>
+      </Dialog>
 
       {!issue.closure.ready && (
         <div className="casebar">

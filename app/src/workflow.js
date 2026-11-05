@@ -1,13 +1,18 @@
-import { counts } from './ledger.js';
-import { blockMessage, UNAVAILABLE_MESSAGE } from './gate.js';
+import { decideClosure, UNKNOWN_STATE_MESSAGE, UNAVAILABLE_MESSAGE } from './gate.js';
 
 /**
  * The workflow-facing entry points.
  *
  * The validator runs on agent and REST transitions and is the only path that
  * can return a human-readable refusal. The condition runs from a Jira
- * expression and cannot call this code at all — it reads the projection. Both
- * are wired from the same ledger; neither is allowed to be the sole guard.
+ * expression and cannot call this code at all — it reads the two app-owned
+ * fields. Both are derived from the same record, and both are asked through
+ * `decideClosure`, so they cannot disagree about an issue.
+ *
+ * P2.2 changed one rule here: an issue with **no record** used to be allowed.
+ * It is now withheld, because the brief requires that `missing` is never read
+ * as `unmanaged`: an issue Relay has not recorded has no management state, and
+ * "no state" is not permission.
  */
 
 export function extractIssueKey(payload) {
@@ -22,10 +27,10 @@ export function extractIssueKey(payload) {
 }
 
 /**
- * @param {{ readLedger: (key: string) => Promise<any>, log?: (e: object) => void }} deps
+ * @param {{ readLedger: (key: string) => Promise<any>, now?: () => number, log?: (e: object) => void }} deps
  */
 export function createClosureValidator(deps) {
-  const { readLedger, log = () => {} } = deps;
+  const { readLedger, now = () => Date.now(), log = () => {} } = deps;
 
   return async function closureValidator(payload) {
     const issueKey = extractIssueKey(payload);
@@ -45,21 +50,18 @@ export function createClosureValidator(deps) {
     }
 
     if (ledger === null || ledger === undefined) {
-      // No ledger means Relay has never tracked this issue, which is a normal
-      // state for unrelated work — but only when the app is installed and the
-      // issue is in scope. Out of scope is decided by the workflow, not here.
-      log({ event: 'validator_no_ledger', issueKey });
+      log({ event: 'validator_no_record', issueKey });
+      return { result: false, errorMessage: UNKNOWN_STATE_MESSAGE };
+    }
+
+    const decision = decideClosure({ ledger, nowMs: now() });
+
+    if (decision.allow) {
+      log({ event: 'validator_allow', issueKey, code: decision.code, state: decision.state, counts: decision.counts });
       return { result: true };
     }
 
-    const c = counts(ledger);
-    if (c.open === 0) {
-      log({ event: 'validator_allow', issueKey, counts: c });
-      return { result: true };
-    }
-
-    const message = blockMessage(c);
-    log({ event: 'validator_block', issueKey, counts: c });
-    return { result: false, errorMessage: message };
+    log({ event: 'validator_block', issueKey, code: decision.code, state: decision.state, counts: decision.counts });
+    return { result: false, errorMessage: decision.message ?? UNKNOWN_STATE_MESSAGE };
   };
 }

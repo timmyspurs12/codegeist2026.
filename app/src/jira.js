@@ -117,6 +117,49 @@ export function createJira({ requestJira, route, log = () => {} }) {
     }
   }
 
+  /**
+   * One page of an issue search, cursor-paginated.
+   *
+   * The backfill walks a project in pages rather than one unbounded query: a
+   * resolver has a time limit, and an interrupted backfill must be resumable
+   * from the token it returned rather than from the beginning.
+   */
+  async function searchIssuesPage(jql, { maxResults = 25, pageToken = null } = {}) {
+    // The token is interpolated into the route template rather than appended to
+    // its string form: `route` is a template tag, and its result is not a URL.
+    const token = pageToken ? `&nextPageToken=${encodeURIComponent(pageToken)}` : '';
+    try {
+      const data = await readJson(
+        route`/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${String(maxResults)}&fields=key${token}`,
+      );
+      const issues = Array.isArray(data.issues) ? data.issues : [];
+      return {
+        keys: issues.map((i) => i.key).filter(Boolean),
+        nextPageToken: data.nextPageToken ?? null,
+        total: typeof data.total === 'number' ? data.total : null,
+        endpoint: 'search/jql',
+        degraded: false,
+      };
+    } catch (err) {
+      if (!(err instanceof JiraError) || ![400, 404, 405, 410].includes(err.status)) throw err;
+      log({ event: 'jira_search_page_fallback', status: err.status });
+      const startAt = Number(pageToken ?? 0) || 0;
+      const data = await readJson(
+        route`/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=${String(maxResults)}&startAt=${String(startAt)}&fields=key`,
+      );
+      const issues = Array.isArray(data.issues) ? data.issues : [];
+      const nextStart = startAt + issues.length;
+      return {
+        keys: issues.map((i) => i.key).filter(Boolean),
+        nextPageToken: issues.length && nextStart < (data.total ?? 0) ? String(nextStart) : null,
+        total: data.total ?? null,
+        endpoint: 'search',
+        degraded: true,
+        warning: `Enhanced issue search unavailable (${err.status}); the deprecated endpoint paginates by offset.`,
+      };
+    }
+  }
+
   async function readProperty(issueKey, propKey) {
     const res = await call(route`/rest/api/3/issue/${issueKey}/properties/${propKey}`);
     if (res.status === 404) return null;
@@ -217,7 +260,7 @@ export function createJira({ requestJira, route, log = () => {} }) {
   }
 
   return {
-    getIssue, getComments, searchIssueKeys, readProperty, writeProperty,
+    getIssue, getComments, searchIssueKeys, searchIssuesPage, readProperty, writeProperty,
     listFields, findFieldByModuleType, writeAppFieldValue, readField,
     myself, searchPeople,
   };

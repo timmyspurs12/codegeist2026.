@@ -1,5 +1,11 @@
 # Relay Phase 2 — real Jira integration
 
+> **P2.2 supersedes parts of this document.** The management-state field, the
+> conditional commit on `rev`, the append-only audit trail and the track/untrack/
+> backfill lifecycle are described in [`docs/P2.2-RUNBOOK.md`](P2.2-RUNBOOK.md).
+> Where this document says "closure field", read "the two app-owned fields"; where
+> it says "no ledger is permitted", read "no record is withheld".
+
 **Phase 2.1 supersedes parts of this document.** The closure condition no longer
 reads a hand-made Number field: the app declares its own read-only
 `jira:customField`, writes it through the private app-field API, and resolves its
@@ -218,7 +224,7 @@ BLOCKED is not PASS.
 
 ```
 cd app && npm test
-# tests 99, pass 99, fail 0
+# tests 140, pass 140, fail 0
 
 cd app/ui && npx tsc --noEmit      # clean
 cd app/ui && npm run check:render  # 6 screens, all expected content, no forbidden values
@@ -485,3 +491,70 @@ ledger as stale even when the projection is fresh.
 9. Press **Record as deployed** so the console stops warning about the manifest.
 
 Everything in this list requires Atlassian access this environment does not have.
+
+---
+
+## 11. Phase 2.2 — management state, conditional commits, append-only audit
+
+Full runbook: [`docs/P2.2-RUNBOOK.md`](P2.2-RUNBOOK.md). This section is the
+summary and the corrections this phase makes to §3, §5 and §7 above.
+
+### 11.1 What changed
+
+| P2.1 | P2.2 | Why |
+| --- | --- | --- |
+| one app-owned field (count) | two (count + management state) | a number cannot say "Relay does not manage this issue"; zero would permit a case Relay has never recorded |
+| advisory lock, mutation ran even when the lock was not acquired | conditional commit on `rev` via `kvs.transact().set(..., { conditions: Filter.equalTo('rev', expected) })` | the lock was never a guarantee, and KVS has no compare-and-swap |
+| ledger read-modify-write with a read-back | record read, mutate, **conditional commit**, retry on conflict | a lost update was possible between the write and the read-back |
+| audit: one key per issue, `get → prepend → set` | one key per event, `FAIL_IF_EXISTS`, prefix-paginated reads | concurrent appends lost events silently |
+| an issue with no ledger was **permitted** | an issue with no record is **withheld** | "missing" is not "unmanaged" |
+| reconcile counted `no_ledger` as already in step | `noLedger` / `initializing` / `failed` / `inaccessible` are reported categories | a missing record is a failure to record, not a success to hide |
+| track was a list edit | lifecycle: `initializing` → capture → `managed`, every write verified | an interrupted capture left a "managed" issue with no code path back |
+
+### 11.2 The record, and the entity it lives in
+
+The record (`issueKey`, `rev`, `state`, `digest`, `commitments`, `version`,
+`updatedAt`) is a Custom Entity Store entity `relay-ledger`, declared in
+`manifest.yml` under `app.storage.entities`. Attribute types are enforced by the
+store, so the declaration is exhaustive. `rev` is what every commit is
+conditioned on; `state` is what the condition reads.
+
+### 11.3 The condition, restated
+
+```
+(issue.<stateField> == "unmanaged") || (issue.<stateField> == "managed" && issue.<countField> == 0)
+```
+
+`unmanaged` permits; `managed` permits only on an exact numeric zero;
+`initializing`, null, any other string, and any expression error refuse. The
+validator asks `decideClosure` over the same record, so the two cannot disagree
+about an issue (`test/p2-2.test.js`, check 12).
+
+### 11.4 Corrections to this document
+
+* **§3** says the projection is the only thing the condition can see. In P2.2 it
+  reads *two fields*, and the state field is what makes an unmanaged issue
+  permitted.
+* **§5** lists "an untracked issue is not blocked" as a verified property. That
+  is now the opposite: an issue with no record is withheld. `test/workflow.test.js`
+  and `test/p2-2.test.js` assert the new rule.
+* **§7** says `@forge/kvs` storage is last-write-wins with no CAS. True for
+  `kvs.set`; the **Custom Entity Store** transaction API is the exception P2.2
+  uses. The old claim was too broad.
+* `import { storage } from '@forge/kvs'` (P2.1's binding) does not exist in
+  `@forge/kvs@2.1.1` — the export is `kvs`. Fixed in `src/deps.js`.
+
+### 11.5 Verification
+
+```
+npm test                 140/140
+npx tsc --noEmit         clean
+npm run check:render     all screens rendered
+npm run build            ok
+npm run check:manifest   ok (new, dependency-free)
+```
+
+Not verified, and stated as such: `forge lint`, `deploy`, `install`, any live
+Jira REST call, the real field-instance creation, and — in this sandbox — the
+1440/390 screenshots (no browser available; see the runbook §8). The runbook §9
+is the sequence to run on a machine with a Forge login.

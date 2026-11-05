@@ -183,6 +183,14 @@ const rep1042: Issue = {
   location: '14 Coldharbour Lane, Flat 3B',
   updatedAt: ago(1.2),
   commitments: [c1042a, c1042b, c1042c],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1042a, c1042b, c1042c]),
 };
 
@@ -195,6 +203,14 @@ const rep1039: Issue = {
   location: '8 Ashgrove Terrace, Flat 1',
   updatedAt: ago(5),
   commitments: [c1039a, c1039b],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1039a, c1039b]),
 };
 
@@ -207,6 +223,14 @@ const rep1031: Issue = {
   location: '22 Mill Row, House 5',
   updatedAt: ago(2),
   commitments: [c1031a],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1031a]),
 };
 
@@ -219,6 +243,14 @@ const rep1028: Issue = {
   location: '31 Harbour Walk, Flat 2A',
   updatedAt: ago(3),
   commitments: [c1028a],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1028a]),
 };
 
@@ -231,6 +263,14 @@ const rep1024: Issue = {
   location: 'Mill Row communal block',
   updatedAt: ago(24),
   commitments: [c1024a, c1024b],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1024a, c1024b]),
 };
 
@@ -243,6 +283,14 @@ const rep1019: Issue = {
   location: '5 Kiln Yard, Flat 4',
   updatedAt: ago(7),
   commitments: [c1019a],
+  management: {
+    state: 'managed',
+    managed: true,
+    unmanaged: false,
+    initializing: false,
+    known: true,
+    label: 'Managed by Relay',
+  },
   closure: closure([c1019a]),
 };
 
@@ -280,22 +328,57 @@ export const fixtureWorkspace: Workspace = {
     enforcement: {
       validatorInstalled: true,
       conditionInstalled: true,
-      conditionExpression: 'issue.customfield_10123 == 0',
+      conditionExpression: '(issue.customfield_10124 == "unmanaged") || (issue.customfield_10124 == "managed" && issue.customfield_10123 == 0)',
       field: {
-        moduleKey: 'relay-closure-count',
-        name: 'Relay open commitments',
-        typeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count',
-        id: 'customfield_10123',
-        key: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count__FIXTURE__relay-closure-count',
+        count: {
+          which: 'count',
+          moduleKey: 'relay-closure-count',
+          name: 'Relay open commitments',
+          type: 'number',
+          typeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count',
+          id: 'customfield_10123',
+          key: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count__FIXTURE__relay-closure-count',
+          resolved: true,
+          resolvedAt: '2026-11-04T08:57:00.000Z',
+          placeholder: 'customfield_relay_closure_count',
+        },
+        state: {
+          which: 'state',
+          moduleKey: 'relay-management-state',
+          name: 'Relay management state',
+          type: 'string',
+          typeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-management-state',
+          id: 'customfield_10124',
+          key: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-management-state__FIXTURE__relay-management-state',
+          resolved: true,
+          resolvedAt: '2026-11-04T08:57:00.000Z',
+          placeholder: 'customfield_relay_management_state',
+        },
         resolved: true,
-        resolvedAt: '2026-11-04T08:57:00.000Z',
-        expression: 'issue.customfield_10123 == 0',
-        manifestLine: 'expression: "issue.customfield_10123 == 0"',
-        placeholder: 'customfield_relay_closure_count',
+        expression: '(issue.customfield_10124 == "unmanaged") || (issue.customfield_10124 == "managed" && issue.customfield_10123 == 0)',
+        manifestLine: `expression: '(issue.customfield_10124 == "unmanaged") || (issue.customfield_10124 == "managed" && issue.customfield_10123 == 0)'`,
+      },
+      fields: {
+        count: {
+          which: 'count', moduleKey: 'relay-closure-count', name: 'Relay open commitments', type: 'number',
+          typeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count',
+          id: 'customfield_10123',
+          key: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count__FIXTURE__relay-closure-count',
+          resolved: true, resolvedAt: '2026-11-04T08:57:00.000Z', placeholder: 'customfield_relay_closure_count',
+        },
+        state: {
+          which: 'state', moduleKey: 'relay-management-state', name: 'Relay management state', type: 'string',
+          typeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-management-state',
+          id: 'customfield_10124',
+          key: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-management-state__FIXTURE__relay-management-state',
+          resolved: true, resolvedAt: '2026-11-04T08:57:00.000Z', placeholder: 'customfield_relay_management_state',
+        },
       },
       fieldResolved: true,
       fieldId: 'customfield_10123',
-      manifestLine: 'expression: "issue.customfield_10123 == 0"',
+      fieldKey: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count__FIXTURE__relay-closure-count',
+      fieldTypeId: 'ari:cloud:ecosystem::extension/00000000-0000-0000-0000-000000000000/fixture/static/relay-closure-count',
+      manifestLine: `expression: '(issue.customfield_10124 == "unmanaged") || (issue.customfield_10124 == "managed" && issue.customfield_10123 == 0)'`,
       expressionApplied: null,
       customerTransitionsEnabled: true,
       portalNote:

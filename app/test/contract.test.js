@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { createHandlers } from '../src/handlers.js';
-import { CLOSURE_FIELD_MODULE_KEY, CLOSURE_FIELD_PLACEHOLDER } from '../src/field.js';
+import {
+  CLOSURE_FIELD_MODULE_KEY, CLOSURE_FIELD_PLACEHOLDER, STATE_FIELD_MODULE_KEY, STATE_FIELD_PLACEHOLDER,
+} from '../src/field.js';
+import { createMemoryRecords } from './support/fake-forge.js';
 import { createJira } from '../src/jira.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -26,7 +29,9 @@ const resolversSrc = read('src/resolvers.js');
 const indexSrc = read('src/index.js');
 const apiSrc = read('ui/src/lib/api.ts');
 
-const handlerNames = Object.keys(createHandlers({ jira: {}, storage: {}, now: () => new Date(), log: () => {} }));
+const handlerNames = Object.keys(createHandlers({
+  jira: {}, storage: {}, records: createMemoryRecords(), now: () => new Date(), log: () => {},
+}));
 
 /** Names the console asks for, read straight out of the single data seam. */
 const invocations = [...apiSrc.matchAll(/invokeRemote\(\s*'([^']+)'/g)].map((m) => m[1]);
@@ -98,30 +103,64 @@ test('the app id in the manifest is still a placeholder', () => {
   );
 });
 
-test('the app declares its own read-only number field', () => {
-  assert.match(manifest, /^\s+jira:customField:$/m, 'the field must be declared as a jira:customField module');
+test('the app declares its own two read-only fields, and the state field is the one that says "unmanaged"', () => {
+  assert.match(manifest, /^\s+jira:customField:$/m, 'the fields must be declared as jira:customField modules');
   const block = manifest.slice(manifest.indexOf('jira:customField:'), manifest.indexOf('jira:globalPage:'));
-  assert.match(block, new RegExp(`\\s+- key: ${CLOSURE_FIELD_MODULE_KEY}\\n`), 'the module key is the field identity');
-  assert.match(block, /\n\s+name: .+\n/);
-  assert.match(block, /\n\s+description: .+/);
+  assert.match(block, new RegExp(`\\s+- key: ${CLOSURE_FIELD_MODULE_KEY}\\n`), 'the count module key is a field identity');
+  assert.match(block, new RegExp(`\\s+- key: ${STATE_FIELD_MODULE_KEY}\\n`), 'the state module key is a field identity');
   assert.match(block, /\n\s+type: number\n/);
-  assert.match(block, /\n\s+readOnly: true\n/, 'users and the Edit Issue API must not be able to write it');
-  assert.match(block, /Read-only|read-only/, 'the description must say the field is Relay’s and read-only');
+  assert.match(block, /\n\s+type: string\n/);
+  const readOnly = block.match(/readOnly: true/g) ?? [];
+  assert.equal(readOnly.length, 2, 'users and the Edit Issue API must not be able to write either field');
+  assert.match(block, /Read-only|read-only/, 'the description must say the fields are Relay’s and read-only');
 });
 
-test('the condition expression names the app field, by the placeholder until the id is resolved', () => {
-  const expression = manifest.match(/expression: "([^"]+)"/)?.[1];
+test('the condition expression needs both fields and never treats a missing one as unmanaged', () => {
+  const expression = manifest.match(/expression: '([^']+)'/)?.[1];
   assert.ok(expression, 'the condition needs an expression');
   assert.equal(
     `customfield_${CLOSURE_FIELD_MODULE_KEY.replace(/-/g, '_')}`,
     CLOSURE_FIELD_PLACEHOLDER,
-    'the manifest placeholder is derived from the module key',
+    'the count placeholder is derived from its module key',
   );
-  // Either the placeholder (before the app has resolved the id) or the real id.
+  assert.equal(
+    `customfield_${STATE_FIELD_MODULE_KEY.replace(/-/g, '_')}`,
+    STATE_FIELD_PLACEHOLDER,
+    'the state placeholder is derived from its module key',
+  );
+  // Either the placeholders (before the app resolves the ids) or real ids.
   // Never a field somebody created by hand: that is what P2.1 removed.
-  assert.match(expression, /^issue\.(customfield_\d+|customfield_relay_closure_count) == 0$/);
-  assert.ok(!/properties\[/.test(expression), 'the condition reads the field, not an entity property');
-  assert.match(manifest, /relay\.field\.resolve/, 'the manifest must say how the id is obtained');
+  const state = '(issue\\.(customfield_\\d+|customfield_relay_management_state))';
+  const count = '(issue\\.(customfield_\\d+|customfield_relay_closure_count))';
+  assert.match(expression, new RegExp(`^\\(${state} == "unmanaged"\\) \\|\\| \\(${state} == "managed" && ${count} == 0\\)$`));
+  assert.ok(!/properties\[/.test(expression), 'the condition reads fields, not an entity property');
+  assert.match(manifest, /relay\.field\.resolve/, 'the manifest must say how the ids are obtained');
+});
+
+test('the record entity is declared, with the revision the conditional commit checks', () => {
+  assert.match(manifest, /^\s+storage:$/m, 'the manifest must declare app storage');
+  const block = manifest.slice(manifest.indexOf('storage:'), manifest.indexOf('modules:'));
+  assert.match(block, /- name: relay-ledger/);
+  assert.match(block, /rev:\n\s+type: integer/, 'the revision is an integer attribute: transactions condition on it');
+  assert.match(block, /state:\n\s+type: string/);
+  assert.match(block, /commitments:\n\s+type: any/);
+});
+
+test('commits are conditional and creates are create-only', () => {
+  const src = read('src/forge-store.js');
+  assert.match(src, /kvs\.transact\(\)/, 'writes go through a transaction');
+  assert.match(src, /FilterConditions\.equalTo\(expectedRev\)/, 'the transaction conditions on the revision it was derived from');
+  assert.match(src, /keyPolicy: 'FAIL_IF_EXISTS'/, 'create must not overwrite an existing record');
+  assert.match(src, /beginsWith/, 'the audit trail is read by prefix, paginated');
+  assert.ok(!/import \{[^}]*\bstorage\b[^}]*\} from '@forge\/kvs'/.test(read('src/deps.js')), '@forge/kvs exports kvs, not storage');
+});
+
+test('the created trigger records new issues and points at a declared function', () => {
+  assert.match(manifest, /^\s+trigger:$/m, 'the trigger module is how new issues get a record');
+  assert.match(manifest, /avi:jira:created:issue/);
+  assert.match(manifest, /relay-trigger/);
+  assert.match(indexSrc, /onIssueCreated/, 'the function the trigger names must be exported');
+  assert.match(indexSrc, /relay\.state\.init/, 'and it runs the same handler the backfill uses');
 });
 
 test('the field is written through the private app-field API and never through Edit Issue', () => {

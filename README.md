@@ -58,9 +58,18 @@ documented-verified, inferred, untested or blocked: `docs/P2-INTEGRATION.md`.
 `jira:customField` the app owns and writes through the private app-field API:
 `docs/P2.1-RUNBOOK.md` (deploy steps) and §10 of `docs/P2-INTEGRATION.md`.
 
+**Phase 2.2 (management state, conditional commits, append-only audit)** — the
+condition now reads two app-owned fields (count + management state), every
+ledger write is a conditional commit on the record's revision, the audit trail is
+one key per event, and issues move through a tracked lifecycle
+(backfill → initialising → managed → unmanaged):
+`docs/P2.2-RUNBOOK.md` (deploy order, lint commands, rollback) and §11 of
+`docs/P2-INTEGRATION.md`. `npm run check:manifest` is the offline manifest gate.
+
 Build and deploy from a machine with Forge credentials:
 
 ```
+cd app && npm test && npm run check:manifest
 cd app/ui && npm run build     # emits app/static/relay
 cd .. && npx @forge/cli deploy && npx @forge/cli install --upgrade
 ```

@@ -8,3 +8,5 @@ node_modules/
 # Build output: emit with `npm run build` in app/ui before `forge deploy`.
 app/static/relay/
 app/ui/.prerender/
+# TypeScript incremental build metadata
+*.tsbuildinfo

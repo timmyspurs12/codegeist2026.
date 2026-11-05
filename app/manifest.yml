@@ -6,22 +6,70 @@
 #   * a workflow CONDITION guards the CUSTOMER PORTAL, because the portal skips
 #     validators — proven live: the same transition refused an agent and admitted
 #     a customer (c3-3 vs c3-7), and a condition then closed that path (c3-11).
-#   * the condition is expression-only, so it reads a projection Relay writes
-#     onto the issue. It cannot call Relay, and it cannot say why.
+#   * the condition is expression-only, so it reads fields Relay writes onto the
+#     issue. It cannot call Relay, and it cannot say why.
+#
+# P2.2 adds the second half of the condition: the management state. A single
+# number cannot say "Relay does not manage this issue", and saying zero would
+# permit a case Relay has never recorded.
+
+app:
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  runtime:
+    name: nodejs22.x
+
+  # The authoritative issue record: management state + commitments, versioned.
+  #
+  # It lives in the Custom Entity Store rather than in key/value storage
+  # because only the entity store offers a conditional write. `store.js`
+  # commits with
+  #   kvs.transact().set(key, next, { entityName: relay-ledger,
+  #     conditions: new Filter().and('rev', FilterConditions.equalTo(expectedRev)) })
+  # so a mutation can only land on the revision it was derived from, and creates
+  # use `keyPolicy: FAIL_IF_EXISTS` so the trigger and the backfill cannot
+  # produce two records for one issue.
+  #
+  # The attribute list is exhaustive: the entity store enforces types, and a
+  # stored value must match its declared attributes.
+  storage:
+    entities:
+      - name: relay-ledger
+        attributes:
+          issueKey:
+            type: string
+          rev:
+            type: integer
+          version:
+            type: integer
+          state:
+            type: string
+          digest:
+            type: string
+          updatedAt:
+            type: string
+          commitments:
+            type: any
 
 modules:
-  # The closure field. Declared here so the app owns it: Forge creates a single
-  # locked field instance at deploy time, read-only for users and for the Edit
-  # Issue API. The app writes it through
+  # The two fields the workflow condition reads. Declared here so the app owns
+  # them: Forge creates one locked field instance per module at deploy time,
+  # read-only for users and for the Edit Issue API. The app writes them through
   # PUT /rest/api/3/app/field/{fieldIdOrKey}/value, which only the owning app can
-  # call. Its type id is
-  #   ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/relay-closure-count
-  # and Relay derives that from the invocation context rather than being told.
+  # call.
+  #
+  # Their type ids are
+  #   ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/{moduleKey}
+  # and Relay derives each from the invocation context rather than being told.
   jira:customField:
     - key: relay-closure-count
       name: Relay open commitments
       description: Relay's internal closure projection: the number of unresolved commitments on this issue. Read-only, written only by Relay. A workflow condition reads it to withhold closure.
       type: number
+      readOnly: true
+    - key: relay-management-state
+      name: Relay management state
+      description: Whether Relay manages this issue — managed, initializing or unmanaged. Read-only, written only by Relay. A workflow condition reads it so an issue Relay does not manage is never blocked, and an issue it is still initialising is never opened.
+      type: string
       readOnly: true
 
   jira:globalPage:
@@ -41,33 +89,54 @@ modules:
   jira:workflowValidator:
     - key: relay-closure-validator
       name: Relay closure gate
-      description: Blocks closure while accepted commitments remain unresolved.
+      description: Blocks closure unless Relay does not manage the issue, or manages it and holds no unresolved commitments.
       function: relay-validator
       projectTypes:
         - company-managed
 
   # Customer portal coverage.
   #
-  # The condition reads the app's own read-only number field (jira:customField
-  # below). The field id Jira assigns is generated per app and environment, so
-  # the expression cannot be written at build time. Relay resolves the id at
+  # The condition reads the app's two read-only fields (jira:customField above).
+  # The field ids Jira assigns are generated per app and environment, so the
+  # expression cannot be written at build time. Relay resolves the ids at
   # runtime (relay.field.resolve), and the console prints the exact line to put
-  # here. Until it is replaced, the expression names a field that does not
-  # exist: Jira treats an expression error as false, so every state short of a
-  # confirmed zero refuses the transition.
+  # here. Until it is replaced, the expression names fields that do not exist:
+  # Jira treats an expression error as false, so every issue is refused — the
+  # safe direction, and the reason the backfill must run before the condition is
+  # attached in anger.
+  #
+  #   (state == "unmanaged") || (state == "managed" && count == 0)
+  #
+  # true  only when the state is exactly "unmanaged", or exactly "managed" and
+  #       the count is exactly the number 0;
+  # false for "initializing", for null, for any other string, and for any count
+  #       that is not zero — including null, which is never coerced to 0;
+  # false on an expression error, which is what a missing field raises.
   jira:workflowCondition:
     - key: relay-closure-condition
       name: Relay closure readiness
-      description: Offers the closure transition only when Relay holds no unresolved commitments.
-      expression: "issue.customfield_relay_closure_count == 0"
+      description: Offers the closure transition only when Relay does not manage the issue, or manages it and holds no unresolved commitments.
+      expression: '(issue.customfield_relay_management_state == "unmanaged") || (issue.customfield_relay_management_state == "managed" && issue.customfield_relay_closure_count == 0)'
       projectTypes:
         - company-managed
+
+  # Every issue created after install is recorded as `unmanaged` immediately, so
+  # it is not withheld for the wrong reason and never sits in the "no record"
+  # state that both enforcement paths refuse. The backfill covers issues that
+  # already existed.
+  trigger:
+    - key: relay-issue-created
+      function: relay-trigger
+      events:
+        - avi:jira:created:issue
 
 function:
   - key: relay-resolver
     handler: index.handler
   - key: relay-validator
     handler: index.closureValidator
+  - key: relay-trigger
+    handler: index.onIssueCreated
 
 resources:
   - key: relay-ui
@@ -80,11 +149,6 @@ permissions:
     - write:jira-work
     # The person picker and assignable-user search are read:jira-user.
     - read:jira-user
-    # Writing the app's own read-only field. Documented as optional today and
+    # Writing the app's own read-only fields. Documented as optional today and
     # planned to become required for the private app-field API.
     - write:app-data:jira
-
-app:
-  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
-  runtime:
-    name: nodejs22.x

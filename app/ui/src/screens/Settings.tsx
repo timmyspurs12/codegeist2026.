@@ -20,6 +20,10 @@ export function Settings({ workspace, onChange, toast, mode }: {
   const [threshold, setThreshold] = useState(workspace.integrations.capture.confidenceThreshold);
   const [requireOwner, setRequireOwner] = useState(workspace.integrations.capture.requireOwner);
   const [trackKey, setTrackKey] = useState('');
+  // Backfill: one page per click, resumable by the token the server returns.
+  const [projectKey, setProjectKey] = useState(workspace.integrations.jira.project || '');
+  const [backfillCursor, setBackfillCursor] = useState<string | null>(null);
+  const [backfill, setBackfill] = useState<{ done: boolean; initialised: number; skipped: number; failed: number } | null>(null);
   const closureField = workspace.integrations.enforcement.field ?? null;
   const [fieldLive, setFieldLive] = useState<FieldResolution | null>(null);
   // Live resolution when we have it, otherwise the snapshot the workspace was
@@ -167,10 +171,16 @@ export function Settings({ workspace, onChange, toast, mode }: {
                       onClick={async () => {
                         setBusy(true);
                         try {
-                          const next = await api.track(trackKey.trim());
+                          const { workspace: next, track } = await api.track(trackKey.trim());
                           onChange(next);
                           setTrackKey('');
-                          toast(`${trackKey.trim()} is now tracked.`);
+                          toast(
+                            track.status === 'managed'
+                              ? `${trackKey.trim()} is now managed: ${track.created?.length ?? 0} commitment(s) captured.`
+                              : track.status === 'already_managed'
+                                ? `${trackKey.trim()} was already managed; its fields were re-verified.`
+                                : `${trackKey.trim()} could not finish (${track.stage ?? 'unknown'}). It stays withheld until track completes.`,
+                          );
                         } catch (err) {
                           toast(err instanceof Error ? err.message : String(err));
                         } finally { setBusy(false); }
@@ -226,18 +236,70 @@ export function Settings({ workspace, onChange, toast, mode }: {
                 </div>
                 <div className="setting">
                   <div>
-                    <div className="setting__title">Closure field</div>
+                    <div className="setting__title">Backfill the project</div>
                     <div className="setting__desc">
-                      Relay’s own read-only number field, created with the app. The condition reads it; only Relay can write it.
+                      Records every issue in the project as <span className="mono">unmanaged</span>, so an issue Relay has never
+                      seen is never withheld for the wrong reason — and never permitted either. Existing records are skipped, never
+                      overwritten, so running this while the app is live cannot unmanage a case. Run it <strong>before</strong>
+                      attaching the workflow condition.
                     </div>
                     <div className="setting__meta">
-                      <span className="mono">{fieldView?.id ?? 'not resolved'}</span>
-                      {fieldView?.key ? <span className="mono setting__meta-ellipsis" title={fieldView.key}>{fieldView.key}</span> : null}
+                      {backfill
+                        ? `${backfill.initialised} recorded · ${backfill.skipped} already had a record · ${backfill.failed} failed${backfill.done ? ' · complete' : ' · more pages remain'}`
+                        : 'One page at a time; each page is resumable if the resolver times out.'}
+                    </div>
+                  </div>
+                  <div className="setting__control" style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      className="input"
+                      placeholder="FS"
+                      value={projectKey}
+                      onChange={(e) => { setProjectKey(e.target.value.toUpperCase()); setBackfillCursor(null); setBackfill(null); }}
+                      aria-label="Project key to backfill"
+                      style={{ maxWidth: 110 }}
+                    />
+                    <Button
+                      disabled={mode !== 'live' || busy || !/^[A-Z][A-Z0-9_]*$/.test(projectKey.trim())}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          const res = await api.backfill(projectKey.trim(), backfillCursor, 25);
+                          setBackfillCursor(res.nextPageToken);
+                          setBackfill({
+                            done: res.done,
+                            initialised: res.initialised.length,
+                            skipped: res.skipped.length,
+                            failed: res.failed.length,
+                          });
+                          toast(
+                            `${res.initialised.length} issue(s) recorded as unmanaged; ${res.skipped.length} already had a record.${res.done ? ' Backfill complete.' : ' A further page remains.'}`,
+                            res.failed.length ? 'overdue' : 'verified',
+                          );
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : String(err));
+                        } finally { setBusy(false); }
+                      }}
+                    >
+                      {backfillCursor ? 'Next page' : 'Backfill'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="setting">
+                  <div>
+                    <div className="setting__title">Closure fields</div>
+                    <div className="setting__desc">
+                      Two read-only fields Relay owns: the <strong>count</strong> of unresolved commitments, and the
+                      <strong> management state</strong> — managed, initialising or unmanaged. The condition reads both, because a
+                      count alone cannot say “Relay does not manage this issue”.
+                    </div>
+                    <div className="setting__meta">
+                      <span className="mono">count {fieldView?.count?.id ?? 'not resolved'}</span>
+                      <span className="mono">state {fieldView?.state?.id ?? 'not resolved'}</span>
                     </div>
                   </div>
                   <div className="setting__control">
                     <Stamp tone={fieldView?.resolved ? 'verified' : 'open'}>
-                      {fieldView?.resolved ? 'Resolved' : 'Not resolved'}
+                      {fieldView?.resolved ? 'Both resolved' : 'Not resolved'}
                     </Stamp>
                     {!fieldView?.resolved && (
                       <p className="setting__note">

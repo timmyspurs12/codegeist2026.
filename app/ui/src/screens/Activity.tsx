@@ -8,6 +8,8 @@ import { clock, dayLabel } from '../lib/format';
 type Filter = 'all' | 'commitments' | 'closure';
 
 const tone: Record<ActivityType, string> = {
+  tracked: 'var(--ink-2)',
+  untracked: 'var(--muted)',
   captured: 'var(--ochre)',
   accepted: 'var(--pine)',
   reassigned: 'var(--pine)',

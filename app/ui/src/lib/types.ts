@@ -72,7 +72,26 @@ export interface ClosureState {
   };
   validatorMessage: string | null;
   conditionMessage: string | null;
-  decisionCode?: 'clear' | 'blocked' | 'unavailable' | 'untracked';
+  /** The one decision both enforcement paths are derived from. */
+  decisionCode?: 'clear' | 'blocked' | 'initializing' | 'unknown_state' | 'unmanaged' | 'unavailable';
+}
+
+/**
+ * Relay's management state for an issue, as the record holds it.
+ *
+ * `null` is a real value: Relay has no record for this issue, so it has no
+ * management state — and no state is not `unmanaged`. Both enforcement paths
+ * withhold in that case.
+ */
+export type ManagementState = 'managed' | 'unmanaged' | 'initializing' | null;
+
+export interface Management {
+  state: ManagementState;
+  managed: boolean;
+  unmanaged: boolean;
+  initializing: boolean;
+  known: boolean;
+  label: string;
 }
 
 export interface Issue {
@@ -90,12 +109,15 @@ export interface Issue {
   issueType?: string | null;
   updatedAt: string;
   commitments: Commitment[];
+  management: Management;
   closure: ClosureState;
   /** Diagnostics raised while producing this issue — a failed projection or field write shows here. */
   diagnostics?: Diagnostic[];
 }
 
 export type ActivityType =
+  | 'tracked'
+  | 'untracked'
   | 'captured'
   | 'accepted'
   | 'reassigned'
@@ -129,16 +151,27 @@ export interface Diagnostic {
  * null means the condition cannot read anything yet, and is never a zero.
  */
 export interface ClosureField {
+  /** 'count' is the number the condition compares to zero; 'state' is the word it reads first. */
+  which: 'count' | 'state';
   moduleKey: string;
   name: string;
+  type: 'number' | 'string';
   typeId: string | null;
   id: string | null;
   key: string | null;
   resolved: boolean;
   resolvedAt: string | null;
+  placeholder: string;
+}
+
+/** Both app-owned fields and the one expression that reads them. */
+export interface FieldSet {
+  count: ClosureField;
+  state: ClosureField;
+  /** True only when Jira has returned an id for both. */
+  resolved: boolean;
   expression: string;
   manifestLine: string;
-  placeholder: string;
 }
 
 export interface Workspace {
@@ -165,7 +198,8 @@ export interface Workspace {
       portalNote: string;
       verification?: 'declared' | 'unverified';
       /** The app-owned closure field, resolved for this app and environment. */
-      field?: ClosureField;
+      field?: FieldSet;
+      fields?: { count: ClosureField; state: ClosureField };
       fieldId?: string | null;
       fieldKey?: string | null;
       fieldTypeId?: string | null;
