@@ -64,12 +64,22 @@ ledger write is a conditional commit on the record's revision, the audit trail i
 one key per event, and issues move through a tracked lifecycle
 (backfill → initialising → managed → unmanaged):
 `docs/P2.2-RUNBOOK.md` (deploy order, lint commands, rollback) and §11 of
-`docs/P2-INTEGRATION.md`. `npm run check:manifest` is the offline manifest gate.
+`docs/P2-INTEGRATION.md`.
+
+**P2.2.1 (manifest corrections)** — the manifest P2.2 shipped could not be
+parsed on Windows (an unquoted `: ` inside a field description), the two
+`jira:customField` modules were missing the resolver Forge requires, the issue
+panel was missing its icon, and `function:` sat at the top level where the
+manifest schema does not allow it. All four are fixed; `npm run check:manifest`
+now parses the YAML with a real parser and validates it against the schema Forge
+itself ships (`@forge/manifest`), so a manifest that only *looks* right no longer
+passes. See §12 of `docs/P2.2-RUNBOOK.md`.
 
 Build and deploy from a machine with Forge credentials:
 
 ```
-cd app && npm test && npm run check:manifest
-cd app/ui && npm run build     # emits app/static/relay
+cd app && npm install          # dev dependencies: yaml, @forge/manifest
+npm test && npm run check:manifest
+cd ui && npm run build         # emits app/static/relay
 cd .. && npx @forge/cli deploy && npx @forge/cli install --upgrade
 ```

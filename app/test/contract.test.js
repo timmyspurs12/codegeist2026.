@@ -22,7 +22,14 @@ import { createJira } from '../src/jira.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = join(here, '..');
-const read = (rel) => readFileSync(join(appDir, rel), 'utf8');
+
+/**
+ * Text reads are normalised to LF. A Windows checkout with `core.autocrlf=true`
+ * hands these tests CRLF, and every assertion here is about content, not about
+ * which newline the checkout uses — the first version of this file failed on
+ * Windows for exactly that reason and said nothing about the manifest.
+ */
+const read = (rel) => readFileSync(join(appDir, rel), 'utf8').replace(/\r\n/g, '\n');
 
 const manifest = read('manifest.yml');
 const resolversSrc = read('src/resolvers.js');
@@ -113,6 +120,24 @@ test('the app declares its own two read-only fields, and the state field is the 
   const readOnly = block.match(/readOnly: true/g) ?? [];
   assert.equal(readOnly.length, 2, 'users and the Edit Issue API must not be able to write either field');
   assert.match(block, /Read-only|read-only/, 'the description must say the fields are Relay’s and read-only');
+
+  // Forge requires a resolver on every jira:customField module — a field
+  // declared without one is rejected at deploy, and the field never exists.
+  const fieldModules = block.split(/\n    - key: /).slice(1);
+  assert.equal(fieldModules.length, 2, 'expected exactly two field modules');
+  for (const mod of fieldModules) {
+    assert.match(mod, /^ {6}resolver:\n {8}function: relay-resolver$/m,
+      'every custom field needs the resolver, or Forge refuses the module');
+  }
+  assert.match(manifest, /- key: relay-resolver\n\s+handler: index\.handler/, 'that resolver key must be a declared function');
+});
+
+test('every description is a quoted scalar, so a colon inside it cannot break the YAML', () => {
+  const bare = manifest
+    .split('\n')
+    .map((line, i) => [line, i + 1])
+    .filter(([line]) => /^\s+(description|title|name): (?!["'])/.test(line) && /: /.test(line.replace(/^\s+[\w]+: /, '')));
+  assert.deepEqual(bare.map(([, n]) => n), [], 'unquoted ": " in a scalar: quote the whole value (see line numbers)');
 });
 
 test('the condition expression needs both fields and never treats a missing one as unmanaged', () => {
@@ -161,6 +186,20 @@ test('the created trigger records new issues and points at a declared function',
   assert.match(manifest, /relay-trigger/);
   assert.match(indexSrc, /onIssueCreated/, 'the function the trigger names must be exported');
   assert.match(indexSrc, /relay\.state\.init/, 'and it runs the same handler the backfill uses');
+});
+
+test('the issue panel has the icon Forge requires, and it ships inside the resource', () => {
+  const panel = manifest.slice(manifest.indexOf('jira:issuePanel:'), manifest.indexOf('jira:workflowValidator:'));
+  const icon = panel.match(/\n      icon: (\S+)\n/)?.[1];
+  assert.ok(icon, 'jira:issuePanel requires an icon; without one the module is invalid');
+  if (!/^https?:\/\//.test(icon)) {
+    // A relative icon is resolved inside the declared resource, so it has to be
+    // in the source that vite copies (ui/public) *and* in the build.
+    assert.ok(existsSync(join(appDir, 'ui/public', icon)), `ui/public/${icon} must exist: vite copies it into the resource`);
+    if (existsSync(join(appDir, 'static/relay'))) {
+      assert.ok(existsSync(join(appDir, 'static/relay', icon)), `${icon} is missing from the built resource`);
+    }
+  }
 });
 
 test('the field is written through the private app-field API and never through Edit Issue', () => {

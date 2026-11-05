@@ -63,14 +63,18 @@ modules:
   jira:customField:
     - key: relay-closure-count
       name: Relay open commitments
-      description: Relay's internal closure projection: the number of unresolved commitments on this issue. Read-only, written only by Relay. A workflow condition reads it to withhold closure.
+      description: "Relay's internal closure projection: the number of unresolved commitments on this issue. Read-only, written only by Relay. A workflow condition reads it to withhold closure."
       type: number
       readOnly: true
+      resolver:
+        function: relay-resolver
     - key: relay-management-state
       name: Relay management state
-      description: Whether Relay manages this issue — managed, initializing or unmanaged. Read-only, written only by Relay. A workflow condition reads it so an issue Relay does not manage is never blocked, and an issue it is still initialising is never opened.
+      description: "Whether Relay manages this issue — managed, initializing or unmanaged. Read-only, written only by Relay. A workflow condition reads it so an issue Relay does not manage is never blocked, and an issue it is still initialising is never opened."
       type: string
       readOnly: true
+      resolver:
+        function: relay-resolver
 
   jira:globalPage:
     - key: relay-workspace
@@ -82,6 +86,7 @@ modules:
   jira:issuePanel:
     - key: relay-case-panel
       title: Commitments
+      icon: icon.svg
       resource: relay-ui
       resolver:
         function: relay-resolver
@@ -130,13 +135,13 @@ modules:
       events:
         - avi:jira:created:issue
 
-function:
-  - key: relay-resolver
-    handler: index.handler
-  - key: relay-validator
-    handler: index.closureValidator
-  - key: relay-trigger
-    handler: index.onIssueCreated
+  function:
+    - key: relay-resolver
+      handler: index.handler
+    - key: relay-validator
+      handler: index.closureValidator
+    - key: relay-trigger
+      handler: index.onIssueCreated
 
 resources:
   - key: relay-ui

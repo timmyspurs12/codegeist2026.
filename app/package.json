@@ -14,5 +14,9 @@
     "@forge/api": "^8.4.0",
     "@forge/kvs": "^2.1.1",
     "@forge/resolver": "^1.6.5"
+  },
+  "devDependencies": {
+    "@forge/manifest": "^13.8.0",
+    "yaml": "^2.9.1"
   }
 }

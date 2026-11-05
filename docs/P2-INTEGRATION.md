@@ -547,11 +547,11 @@ about an issue (`test/p2-2.test.js`, check 12).
 ### 11.5 Verification
 
 ```
-npm test                 140/140
+npm test                 142/142   (140 in P2.2; two added in P2.2.1)
 npx tsc --noEmit         clean
 npm run check:render     all screens rendered
 npm run build            ok
-npm run check:manifest   ok (new, dependency-free)
+npm run check:manifest   17 checks: YAML parsed, structure, Forge schema
 ```
 
 Not verified, and stated as such: `forge lint`, `deploy`, `install`, any live
