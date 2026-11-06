@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -100,13 +101,24 @@ test('declared scopes cover every Jira call the code makes', () => {
   }
 });
 
-test('the app id in the manifest is still a placeholder', () => {
-  const id = manifest.match(/^\s+id: (ari:cloud:ecosystem::app\/[\w-]+)$/m)?.[1];
-  assert.ok(id, 'manifest must declare an app id (register the app to get one)');
+test('the registered app id is local, not committed', () => {
+  const idPattern = /^ari:cloud:ecosystem::app\/[\w-]+$/;
+  const localId = manifest.match(/^\s+id: (ari:cloud:ecosystem::app\/[\w-]+)$/m)?.[1];
+
+  assert.ok(localId, 'manifest must declare an app id');
+  assert.match(localId, idPattern, 'local manifest must contain a valid app id');
+
+  const committedManifest = execFileSync('git', ['show', 'HEAD:app/manifest.yml'], {
+    cwd: appDir,
+    encoding: 'utf8',
+  });
+  const committedId = committedManifest.match(/^\s+id: (ari:cloud:ecosystem::app\/[\w-]+)$/m)?.[1];
+
+  assert.ok(committedId, 'committed manifest must declare an app id');
   assert.match(
-    id,
+    committedId,
     /app\/0{8}-0{4}-0{4}-0{4}-0{12}$/,
-    'a real app id must never be committed: register locally and keep the id out of git',
+    'the registered app id must remain local and must not be committed',
   );
 });
 
@@ -141,7 +153,7 @@ test('every description is a quoted scalar, so a colon inside it cannot break th
 });
 
 test('the condition expression needs both fields and never treats a missing one as unmanaged', () => {
-  const expression = manifest.match(/expression: '([^']+)'/)?.[1];
+  const expression = manifest.match(/expression: '([^']+)'/)?.[1]?.replace(/\s+/g, ' ').trim();
   assert.ok(expression, 'the condition needs an expression');
   assert.equal(
     `customfield_${CLOSURE_FIELD_MODULE_KEY.replace(/-/g, '_')}`,

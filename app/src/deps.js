@@ -5,7 +5,7 @@
  * trigger) both build their dependencies here, so there is a single answer to
  * "which Jira, which storage, which record store" per invocation.
  */
-import { api, route } from '@forge/api';
+import api, { route } from '@forge/api';
 import { createJira } from './jira.js';
 import { createForgeRecords, createForgeStorage } from './forge-store.js';
 
