@@ -73,8 +73,45 @@ export function isManagedState(state) {
  * }} Commitment
  */
 
+/**
+ * A content digest of the commitment list.
+ *
+ * Revision numbers alone are not enough to verify a write: a rival writer can
+ * produce the same revision with different content, and a length check would
+ * not notice. The digest makes "exactly the ledger I intended" a checkable
+ * claim rather than an assumption.
+ *
+ * It lives here, next to the record shape, because the *empty* ledger needs a
+ * digest too: a created record without one is a record whose read-back cannot
+ * be verified, and the Custom Entity Store has no null to put there instead.
+ */
+export function digestOf(commitments) {
+  const list = Array.isArray(commitments) ? commitments : [];
+  const canonical = list
+    .map((c) => [c.code, c.status, c.owner?.id ?? c.owner?.name ?? '', c.dueAt ?? '', c.text ?? ''].join('\u0001'))
+    .sort()
+    .join('\u0002');
+  let h = 2166136261;
+  for (let i = 0; i < canonical.length; i += 1) {
+    h ^= canonical.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `${list.length}:${(h >>> 0).toString(16)}`;
+}
+
+/** The digest of a record with no commitments: what a freshly created record holds. */
+export const EMPTY_DIGEST = digestOf([]);
+
 export function emptyLedger(issueKey, now = new Date().toISOString(), state = INITIALIZING) {
-  return { version: LEDGER_VERSION, rev: 0, issueKey, state, commitments: [], updatedAt: now };
+  return {
+    version: LEDGER_VERSION,
+    rev: 0,
+    issueKey,
+    state,
+    commitments: [],
+    digest: EMPTY_DIGEST,
+    updatedAt: now,
+  };
 }
 
 /**

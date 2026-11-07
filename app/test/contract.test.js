@@ -19,6 +19,7 @@ import {
   CLOSURE_FIELD_MODULE_KEY, CLOSURE_FIELD_PLACEHOLDER, STATE_FIELD_MODULE_KEY, STATE_FIELD_PLACEHOLDER,
 } from '../src/field.js';
 import { createMemoryRecords } from './support/fake-forge.js';
+import { RECORD_ATTRIBUTES } from '../src/record-codec.js';
 import { createJira } from '../src/jira.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -181,6 +182,23 @@ test('the record entity is declared, with the revision the conditional commit ch
   assert.match(block, /rev:\n\s+type: integer/, 'the revision is an integer attribute: transactions condition on it');
   assert.match(block, /state:\n\s+type: string/);
   assert.match(block, /commitments:\n\s+type: any/);
+});
+
+test('every attribute the record codec writes is declared on the entity, with the same type', () => {
+  const block = manifest.slice(manifest.indexOf('storage:'), manifest.indexOf('modules:'));
+  const declared = Object.fromEntries(
+    [...block.matchAll(/^ {10}([A-Za-z_][\w]*):\n {12}type: (\w+)$/gm)].map((m) => [m[1], m[2]]),
+  );
+
+  for (const [attribute, type] of Object.entries(RECORD_ATTRIBUTES)) {
+    assert.equal(
+      declared[attribute],
+      type,
+      `relay-ledger must declare ${attribute}: ${type}. An attribute the code writes but the entity does not declare is a 422 at runtime.`,
+    );
+  }
+  const unused = Object.keys(declared).filter((attribute) => !(attribute in RECORD_ATTRIBUTES));
+  assert.deepEqual(unused, [], 'a declared attribute nothing writes is dead weight (and cannot be removed once deployed)');
 });
 
 test('commits are conditional and creates are create-only', () => {

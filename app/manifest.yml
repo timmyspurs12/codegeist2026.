@@ -29,8 +29,19 @@ app:
   # use `keyPolicy: FAIL_IF_EXISTS` so the trigger and the backfill cannot
   # produce two records for one issue.
   #
-  # The attribute list is exhaustive: the entity store enforces types, and a
-  # stored value must match its declared attributes.
+  # The attribute list is exhaustive: the entity store enforces types, rejects
+  # any attribute that is not declared here, and has no null value of any type.
+  # `src/record-codec.js` is the mirror of this block — it holds the same list,
+  # strips every null before a write, and restores them on a read; the offline
+  # manifest check fails if the two lists disagree.
+  #
+  # Attributes can be added to a deployed entity but never removed, so this list
+  # only grows.
+  #
+  # `source`, `trackedBy`, `managedAt`, `untrackedAt`, `untrackedBy` and
+  # `backfilledAt` are the lifecycle metadata. They are written only when they
+  # mean something: a trigger-created record has no actor, so `trackedBy` is
+  # absent rather than null (the store has no null to put there).
   storage:
     entities:
       - name: relay-ledger
@@ -49,6 +60,23 @@ app:
             type: string
           commitments:
             type: any
+          # 'track' | 'console' | 'trigger' | 'backfill'
+          source:
+            type: string
+          # Account id of whoever tracked it, when there was a person.
+          trackedBy:
+            type: string
+          # When the record reached `managed`.
+          managedAt:
+            type: string
+          # When it was offboarded, and by whom.
+          untrackedAt:
+            type: string
+          untrackedBy:
+            type: string
+          # When the trigger or a backfill page created it.
+          backfilledAt:
+            type: string
 
 modules:
   # The two fields the workflow condition reads. Declared here so the app owns

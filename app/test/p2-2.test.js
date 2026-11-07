@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 
 import { createHandlers, LifecycleError } from '../src/handlers.js';
 import { createStore } from '../src/store.js';
+import { emptyLedger } from '../src/ledger.js';
 import { createClosureValidator } from '../src/workflow.js';
 import { decideClosure } from '../src/gate.js';
 import { evaluateClosureCondition } from '../src/field.js';
@@ -263,11 +264,14 @@ test('14. tracking while an accept is in flight: the accept is refused, not appl
 
 test('15. a stale conditional commit is rejected by the store, not applied', async () => {
   const { records } = site();
-  await records.create('FS-101', { rev: 0, issueKey: 'FS-101', state: 'managed', commitments: [] });
-  await records.update('FS-101', 0, { rev: 1, issueKey: 'FS-101', state: 'managed', commitments: [] });
+  // A real record: the store enforces declared attributes, a digest and an
+  // updatedAt on every write, so a hand-made stub would be rejected (P2.2.2).
+  const record = (rev) => ({ ...emptyLedger('FS-101', NOW.toISOString(), 'managed'), rev });
+  await records.create('FS-101', record(0));
+  await records.update('FS-101', 0, record(1));
 
   await assert.rejects(
-    () => records.update('FS-101', 0, { rev: 1, issueKey: 'FS-101', state: 'managed', commitments: [] }),
+    () => records.update('FS-101', 0, record(1)),
     (err) => err.name === 'RevisionConflict',
   );
   assert.equal((await records.read('FS-101')).rev, 1);

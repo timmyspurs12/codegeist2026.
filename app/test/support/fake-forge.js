@@ -21,6 +21,7 @@
  */
 import { normaliseComment, normaliseIssue } from '../../src/jira.js';
 import { RecordExists, RevisionConflict } from '../../src/store.js';
+import { RECORD_ATTRIBUTES, fromStored, toStored } from '../../src/record-codec.js';
 
 export function createMemoryStorage({ dropWrites = 0, dropOn = () => false, failOn = null } = {}) {
   const map = new Map();
@@ -66,7 +67,22 @@ export function createMemoryStorage({ dropWrites = 0, dropOn = () => false, fail
 }
 
 /**
- * The conditional record store.
+ * The conditional record store, with the entity store's value rules.
+ *
+ * The map holds what Forge would hold — the *encoded* record — and `read`
+ * decodes it, exactly as `createForgeRecords` does. That matters: a test that
+ * asserted on decoded values while the fake stored decoded values would prove
+ * nothing about the encoding, which is where the 422 came from.
+ *
+ * `raw(key)` returns the encoded value, so a test can assert on what would
+ * actually be sent to the service.
+ *
+ * The value rules are enforced independently of `toStored`, from the declared
+ * attributes: an undeclared attribute, a null (at any depth, inside `any`
+ * included), an empty string, a wrong type, or a non-finite number is rejected
+ * with the shape of error the service returns. If the codec ever stops stripping
+ * something, these tests fail with the service's complaint rather than passing on
+ * a fake that accepts anything.
  *
  * `hooks.beforeCommit` runs *before* the revision check and may await, which is
  * what lets a test interleave two writers deterministically:
@@ -76,43 +92,110 @@ export function createMemoryStorage({ dropWrites = 0, dropOn = () => false, fail
  *     if (op === 'update' && first) { first = false; gate.reached.open(); await gate.released.promise; }
  *   };
  */
-export function createMemoryRecords() {
+export function createMemoryRecords({ attributes = RECORD_ATTRIBUTES } = {}) {
   const map = new Map();
   const commits = [];
-  const hooks = { beforeCommit: null, reads: 0, conflicts: 0 };
+  const hooks = { beforeCommit: null, reads: 0, conflicts: 0, encoded: 0 };
+
+  const encode = (issueKey, record) => {
+    const stored = toStored(record);
+    assertEntityValue(attributes, stored, issueKey);
+    hooks.encoded += 1;
+    return stored;
+  };
 
   return {
     map,
     commits,
     hooks,
-    async read(issueKey) {
-      hooks.reads += 1;
+    attributes,
+    /** What the service would hold — the encoded record, not the domain one. */
+    raw(issueKey) {
       const value = map.get(issueKey);
       return value ? structuredClone(value) : null;
     },
+    async read(issueKey) {
+      hooks.reads += 1;
+      const value = map.get(issueKey);
+      return value ? fromStored(structuredClone(value)) : null;
+    },
     async create(issueKey, record) {
       if (hooks.beforeCommit) await hooks.beforeCommit({ op: 'create', issueKey, expectedRev: null });
+      const stored = encode(issueKey, record);
       if (map.has(issueKey)) {
         hooks.conflicts += 1;
         throw new RecordExists(issueKey);
       }
-      map.set(issueKey, structuredClone(record));
-      commits.push({ op: 'create', issueKey, rev: record.rev });
+      map.set(issueKey, structuredClone(stored));
+      commits.push({ op: 'create', issueKey, rev: stored.rev });
       return record;
     },
     async update(issueKey, expectedRev, record) {
       if (hooks.beforeCommit) await hooks.beforeCommit({ op: 'update', issueKey, expectedRev });
+      const stored = encode(issueKey, record);
       const current = map.get(issueKey);
       const actual = current ? current.rev : null;
       if (actual !== expectedRev) {
         hooks.conflicts += 1;
         throw new RevisionConflict(expectedRev, actual);
       }
-      map.set(issueKey, structuredClone(record));
-      commits.push({ op: 'update', issueKey, rev: record.rev });
+      map.set(issueKey, structuredClone(stored));
+      commits.push({ op: 'update', issueKey, rev: stored.rev });
       return record;
     },
   };
+}
+
+/**
+ * The Custom Entity Store's value rules, from the storage reference:
+ * declared attributes only, `string` non-empty and non-whitespace, `integer`
+ * 32-bit, and no `null` anywhere — `any` included, since `any` admits only
+ * string/number/boolean/object/array.
+ */
+export function assertEntityValue(attributes, record, issueKey = '<key>') {
+  const reject = (message) => {
+    const err = new Error(`entity relay-ledger/${issueKey}: ${message}`);
+    err.name = 'EntityValueError';
+    err.code = 'INVALID_ENTITY_VALUE';
+    err.status = 422;
+    throw err;
+  };
+
+  if (!record || typeof record !== 'object' || Array.isArray(record)) reject('the value is not an object');
+
+  for (const [name, value] of Object.entries(record)) {
+    const type = attributes[name];
+    if (!type) reject(`attribute "${name}" is not declared (the store rejects undeclared attributes)`);
+    if (type === 'string' && typeof value !== 'string') reject(`attribute "${name}" must be a string`);
+    if (type === 'integer' && !Number.isInteger(value)) reject(`attribute "${name}" must be an integer`);
+    if (type === 'integer' && (value < -2147483648 || value > 2147483647)) reject(`attribute "${name}" does not fit in 32 bits`);
+    if (type === 'boolean' && typeof value !== 'boolean') reject(`attribute "${name}" must be a boolean`);
+    checkStorable(name, value, reject);
+  }
+  return record;
+}
+
+function checkStorable(path, value, reject) {
+  if (value === null || value === undefined) reject(`"${path}" is null, and the entity store has no null value`);
+  if (typeof value === 'string') {
+    if (value.trim() === '') reject(`"${path}" is an empty string, which the entity store does not accept`);
+    return;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) reject(`"${path}" is not a finite number`);
+    return;
+  }
+  if (typeof value === 'boolean') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => checkStorable(`${path}[${index}]`, item, reject));
+    return;
+  }
+  if (typeof value === 'object') {
+    if (value instanceof Date) reject(`"${path}" is a Date, which is not a storable type`);
+    for (const [key, nested] of Object.entries(value)) checkStorable(`${path}.${key}`, nested, reject);
+    return;
+  }
+  reject(`"${path}" is a ${typeof value}, which the entity store cannot hold`);
 }
 
 /** A promise plus its resolver, for deterministic interleaving in tests. */

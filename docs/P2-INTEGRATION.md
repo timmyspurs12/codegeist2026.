@@ -514,10 +514,13 @@ summary and the corrections this phase makes to §3, §5 and §7 above.
 ### 11.2 The record, and the entity it lives in
 
 The record (`issueKey`, `rev`, `state`, `digest`, `commitments`, `version`,
-`updatedAt`) is a Custom Entity Store entity `relay-ledger`, declared in
-`manifest.yml` under `app.storage.entities`. Attribute types are enforced by the
-store, so the declaration is exhaustive. `rev` is what every commit is
-conditioned on; `state` is what the condition reads.
+`updatedAt`, plus the lifecycle metadata `source`, `trackedBy`, `managedAt`,
+`untrackedAt`, `untrackedBy`, `backfilledAt`) is a Custom Entity Store entity
+`relay-ledger`, declared in `manifest.yml` under `app.storage.entities`.
+Attribute types are enforced by the store, so the declaration is exhaustive — and
+so is the writer: `src/record-codec.js` holds the same attribute list, strips
+every `null` on the way in and restores it on the way out (§11.6). `rev` is what
+every commit is conditioned on; `state` is what the condition reads.
 
 ### 11.3 The condition, restated
 
@@ -547,14 +550,52 @@ about an issue (`test/p2-2.test.js`, check 12).
 ### 11.5 Verification
 
 ```
-npm test                 142/142   (140 in P2.2; two added in P2.2.1)
+npm test                 161/161   (140 in P2.2, 142 in P2.2.1, 161 in P2.2.2)
 npx tsc --noEmit         clean
 npm run check:render     all screens rendered
 npm run build            ok
-npm run check:manifest   17 checks: YAML parsed, structure, Forge schema
+npm run check:manifest   17 checks: YAML parsed, structure, Forge schema,
+                         entity attributes compared with record-codec.js
 ```
 
 Not verified, and stated as such: `forge lint`, `deploy`, `install`, any live
 Jira REST call, the real field-instance creation, and — in this sandbox — the
 1440/390 screenshots (no browser available; see the runbook §8). The runbook §9
 is the sequence to run on a machine with a Forge login.
+
+### 11.6 P2.2.2 — the record the store will accept
+
+§11.2's claim that the declaration was exhaustive was true of the manifest and
+false of the writer. The first Track after P2.2 deployed failed with
+`HTTP 422 UNPROCESSABLE_ENTITY` at `src/forge-store.js` `entity.set()`:
+
+* the record carried `source` and `trackedBy`, which the entity did not declare;
+* it carried `null` — `trackedBy` at the top level, and inside every commitment
+  (`owner`, `dueAt`, `acceptedBy`, `verificationNote`, and five nullable fields
+  in `evidence`). The Custom Entity Store has no null value of any type, `any`
+  included, and rejects an empty string too;
+* the created record had **no `digest`**, because `emptyLedger()` did not set one
+  and `initialise()` wrote it verbatim.
+
+The fix is one boundary: `src/record-codec.js` encodes a record for the entity
+and decodes it back. A null (or empty string) is **omitted**, not defaulted —
+"absent" and "null" mean the same thing here, *not recorded* — and the decoder
+restores the nulls from an explicit list of nullable keys, so the record a caller
+reads has the shape it wrote. An undeclared attribute, a non-finite number or a
+null array element is a `RecordShapeError` **before** the network call: a failed
+storage write is reported, never retried as a conflict and never reported as
+success. `emptyLedger()` now carries `digestOf([])`, and `initialise()` verifies
+the revision, the state and the digest of what it reads back.
+
+The fake record store now stores the encoded record and enforces the service's
+value rules, so the whole suite runs under them: a null that reaches it fails the
+test with the service's complaint. That is what `test/p2-2-2.test.js` (18 tests)
+covers, including the live lifecycle: initial Track, a Track with no account id,
+console tracking, the managed transition, untracking, trigger and backfill
+creates, commitments with optional fields, and a codec round trip.
+
+**Not claimed:** that the live 422 is fixed. The corrected build has not been
+deployed and no Track has run against Jira. The remaining live uncertainty is the
+one assumption this cannot prove offline — that the entity store accepts a record
+that *omits* a declared optional attribute (the alternative would be to invent a
+placeholder value, which is worse). Runbook §13 has the verification steps.

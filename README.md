@@ -75,6 +75,17 @@ now parses the YAML with a real parser and validates it against the schema Forge
 itself ships (`@forge/manifest`), so a manifest that only *looks* right no longer
 passes. See §12 of `docs/P2.2-RUNBOOK.md`.
 
+**P2.2.2 (the 422 on the first Track)** — the record was written straight into
+the Custom Entity Store, which has no `null` value of any type and rejects
+attributes that are not declared: `trackedBy` was null, every commitment carried
+a dozen nulls, `source`/`trackedBy` were undeclared, and the created record had
+no `digest`. `src/record-codec.js` is now the single encode/decode boundary — it
+omits nulls (absent and null both mean *not recorded*) and restores them on read,
+refuses an undeclared attribute before the network call, and `emptyLedger()`
+carries `digestOf([])`. The fake entity store enforces the same rules, so the
+suite runs under them. Not yet proven live: the corrected build has not been
+deployed. See §13 of `docs/P2.2-RUNBOOK.md`.
+
 Build and deploy from a machine with Forge credentials:
 
 ```

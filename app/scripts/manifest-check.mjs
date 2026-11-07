@@ -32,7 +32,7 @@
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseDocument } from 'yaml';
 import { validate as validateManifest } from '@forge/manifest';
 
@@ -398,7 +398,28 @@ if (!Array.isArray(entities) || !entities.length) {
       if (!(required in attributes)) fail(at, `attribute "${required}" is not declared (the store enforces declared types)`);
     }
     if (attributes.rev && attributes.rev.type !== 'integer') fail(at, 'rev must be type: integer (the conditional write compares numbers)');
-    if (!problems.some((p) => p.startsWith('app.storage.entities'))) ok(`entity ${entity.name}: ${Object.keys(attributes).length} attributes, types valid, name matches the store`);
+
+    // The declaration and the writer must be the same list. `record-codec.js`
+    // is what actually shapes a record for this entity, and the entity store
+    // rejects (with 422) any attribute it does not declare, and any null.
+    const codec = await import(pathToFileURL(join(appDir, 'src', 'record-codec.js')).href).catch(() => null);
+    if (!codec) fail(at, 'src/record-codec.js could not be imported, so the attributes cannot be compared');
+    else {
+      for (const [attr, type] of Object.entries(codec.RECORD_ATTRIBUTES)) {
+        const spec = attributes[attr];
+        if (!spec) fail(at, `"${attr}" is written by record-codec.js but not declared here: the store would reject the record`);
+        else if (spec.type !== type) fail(at, `"${attr}" is written as ${type} but declared as ${spec.type}`);
+      }
+      const unwritten = Object.keys(attributes).filter((attr) => !(attr in codec.RECORD_ATTRIBUTES));
+      for (const attr of unwritten) {
+        // Not a failure: a deployed attribute can never be removed. But an
+        // attribute nothing writes is dead weight, and worth saying out loud.
+        note(`entity attribute "${attr}" is declared but record-codec.js never writes it (deployed attributes cannot be removed)`);
+      }
+    }
+    if (!problems.some((p) => p.startsWith('app.storage.entities'))) {
+      ok(`entity ${entity.name}: ${Object.keys(attributes).length} attributes, types valid, matches record-codec.js, name matches the store`);
+    }
   }
   const stray = Object.keys(app.storage ?? {}).filter((k) => k !== 'entities');
   for (const key of stray) fail('app.storage', `unexpected "${key}"; only entities are used`);

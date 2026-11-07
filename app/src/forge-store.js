@@ -24,6 +24,7 @@
  */
 import { kvs, Filter, FilterConditions, WhereConditions } from '@forge/kvs';
 import { RecordExists, RevisionConflict, isAlreadyExists, isConditionFailed } from './store.js';
+import { fromStored, toStored } from './record-codec.js';
 
 /** Must match `app.storage.entities[].name` in manifest.yml. */
 export const RECORD_ENTITY = 'relay-ledger';
@@ -68,19 +69,32 @@ export function createForgeStorage() {
 /**
  * Read/commit an issue record with a condition on the revision it was derived
  * from. `expectedRev` is `null` only on create.
+ *
+ * Every value crosses `record-codec.js` on its way in and out. That is not
+ * decoration: the ledger is full of nulls (an owner, a due date, a verification
+ * note — all null until something happens) and the Custom Entity Store rejects
+ * nulls, empty strings and undeclared attributes with
+ * `422 UNPROCESSABLE_ENTITY`. Encoding here keeps the domain honest and keeps
+ * the constraint in exactly one place.
+ *
+ * `toStored` throws *before* the network call when a record cannot be stored, so
+ * the failure names the attribute instead of surfacing as an opaque 422; it is
+ * not retried by `store.js` (only conflicts are) and it is never reported as a
+ * successful write.
  */
 export function createForgeRecords() {
   const entity = kvs.entity(RECORD_ENTITY);
 
   return {
     async read(issueKey) {
-      const record = await entity.get(issueKey);
-      return record ?? null;
+      const stored = await entity.get(issueKey);
+      return stored ? fromStored(stored) : null;
     },
 
     async create(issueKey, record) {
+      const stored = toStored(record);
       try {
-        await entity.set(issueKey, record, { keyPolicy: 'FAIL_IF_EXISTS' });
+        await entity.set(issueKey, stored, { keyPolicy: 'FAIL_IF_EXISTS' });
       } catch (err) {
         if (isAlreadyExists(err)) throw new RecordExists(issueKey);
         throw err;
@@ -88,10 +102,11 @@ export function createForgeRecords() {
     },
 
     async update(issueKey, expectedRev, record) {
+      const stored = toStored(record);
       try {
         await kvs
           .transact()
-          .set(issueKey, record, {
+          .set(issueKey, stored, {
             entityName: RECORD_ENTITY,
             // The commit lands only while the stored revision is still the one
             // the mutation was derived from. This is the compare in

@@ -35,7 +35,14 @@
  * with an honest in-memory conditional store. That keeps the concurrency
  * behaviour testable without pretending a serial fake is a database.
  */
-import { emptyLedger } from './ledger.js';
+import { digestOf, emptyLedger } from './ledger.js';
+
+/**
+ * Re-exported for the callers that imported it from here before it moved next to
+ * the record shape (`ledger.js`). The empty ledger needs a digest now, which the
+ * module that defines the ledger must be able to compute.
+ */
+export { digestOf };
 
 export const keyOf = {
   /** Audit events are one key per event: append-only, never rewritten. */
@@ -44,28 +51,6 @@ export const keyOf = {
   tracked: 'relay:tracked',
   settings: 'relay:settings',
 };
-
-/**
- * A content digest of the commitment list.
- *
- * Revision numbers alone are not enough to verify a write: a rival writer can
- * produce the same revision with different content, and a length check would
- * not notice. The digest makes "exactly the ledger I intended" a checkable
- * claim rather than an assumption.
- */
-export function digestOf(commitments) {
-  const list = Array.isArray(commitments) ? commitments : [];
-  const canonical = list
-    .map((c) => [c.code, c.status, c.owner?.id ?? c.owner?.name ?? '', c.dueAt ?? '', c.text ?? ''].join('\u0001'))
-    .sort()
-    .join('\u0002');
-  let h = 2166136261;
-  for (let i = 0; i < canonical.length; i += 1) {
-    h ^= canonical.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return `${list.length}:${(h >>> 0).toString(16)}`;
-}
 
 /** The commit lost: someone else wrote the revision we derived from. */
 export class RevisionConflict extends Error {
@@ -251,8 +236,12 @@ export function createStore({ storage, records, now = () => new Date(), log = ()
       }
       throw err;
     }
+    // A create that returned is still a claim. Verify all three things the
+    // record is for: the revision (nothing else won), the state (the condition
+    // will read it) and the digest (the commitments are the ones intended, and
+    // an empty ledger's digest is `digestOf([])`).
     const readBack = await readLedger(issueKey);
-    if (!readBack || readBack.rev !== record.rev) {
+    if (!readBack || readBack.rev !== record.rev || readBack.state !== record.state || readBack.digest !== digestOf(readBack.commitments ?? [])) {
       throw new Error(`record_create_unverified: ${issueKey}`);
     }
     return { record: readBack, created: true };
@@ -301,7 +290,11 @@ export function createStore({ storage, records, now = () => new Date(), log = ()
   async function track(issueKey, meta = {}) {
     const list = await tracked();
     if (list.some((t) => t.key === issueKey)) return list;
-    const next = [...list, { key: issueKey, addedAt: now().toISOString(), ...meta }];
+    // The tracked list lives in plain key/value storage, which would accept a
+    // null — but the console renders this list, and "absent" and "null" mean
+    // the same thing here (see record-codec.js). Keep one shape.
+    const known = Object.entries(meta).filter(([, value]) => value !== null && value !== undefined && value !== '');
+    const next = [...list, { key: issueKey, addedAt: now().toISOString(), ...Object.fromEntries(known) }];
     await storage.set(keyOf.tracked, next);
     return next;
   }
