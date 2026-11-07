@@ -550,7 +550,8 @@ about an issue (`test/p2-2.test.js`, check 12).
 ### 11.5 Verification
 
 ```
-npm test                 170/170   (140 P2.2, 142 P2.2.1, 161 P2.2.2, 170 P2.2.2 review)
+npm test                 177/177   (140 P2.2, 142 P2.2.1, 161 P2.2.2,
+                                    170 P2.2.2 review, 177 read validation)
 npx tsc --noEmit         clean
 npm run check:render     all screens rendered
 npm run build            ok
@@ -599,9 +600,31 @@ The only legacy repair is the digest, for records created before P2.2.2; a
 present-but-unusable digest is treated as corruption, not repaired. `emptyLedger()` now carries `digestOf([])`, and `initialise()` verifies
 the revision, the state and the digest of what it reads back.
 
+Two more read-time rules close the fail-open side of that contract. First, a
+commitment status outside `proposed`/`open`/`verified`/`dropped` is refused at
+`commitments[n].status`: `isUnresolved()` answers false for anything it does not
+recognise, so a lost or corrupted status would count as settled and drop out of
+the open count the closure condition reads. Those four are the only values the
+codebase has ever written. Second, a present digest is *verified* against the
+stored commitments and a mismatch throws at `digest` — never repaired, because
+the disagreement is the only evidence that the record does not describe its own
+contents. Both rules also run on the way in, so `toStored` refuses to write a
+record that could not be read back: a stored-but-unreadable record fails closed
+on every later read, which is worse than a local error.
+
+The digest covers `code`, `status`, owner identity, `dueAt` and `text`: the
+fields Relay decides from, plus the wording a person accepted. It does not cover
+the `evidence` chain or the acceptance/verification provenance, and it is
+documented as a same-revision consistency check rather than tamper evidence —
+FNV-1a is 32 bits and unseeded, so the revision in the conditional write is the
+real guard. The algorithm is frozen because reads now verify it: changing which
+fields it hashes would make every stored record fail its own check and withhold
+closure project-wide. A versioned `v2:` algorithm is the path if the guarantee is
+ever restated as record-wide integrity (runbook §13.2.2 has the coverage table).
+
 The fake record store now stores the encoded record and enforces the service's
 value rules (declaration by own property too), so the whole suite runs under them: a null that reaches it fails the
-test with the service's complaint. That is what `test/p2-2-2.test.js` (27 tests)
+test with the service's complaint. That is what `test/p2-2-2.test.js` (34 tests)
 covers, including the live lifecycle: initial Track, a Track with no account id,
 console tracking, the managed transition, untracking, trigger and backfill
 creates, commitments with optional fields, and a codec round trip.

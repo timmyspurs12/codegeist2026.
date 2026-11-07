@@ -84,6 +84,39 @@ export function isManagedState(state) {
  * It lives here, next to the record shape, because the *empty* ledger needs a
  * digest too: a created record without one is a record whose read-back cannot
  * be verified, and the Custom Entity Store has no null to put there instead.
+ *
+ * ## What it covers, and what it does not
+ *
+ * Covered, per commitment: `code`, `status`, the owner's identity (`id`, or
+ * `name` when the id is absent, because an on-premise Jira has no account id),
+ * `dueAt` and `text`. Those are the fields Relay *decides* from — `isUnresolved`,
+ * `counts`, the closure contract — plus the identifier and the wording a person
+ * accepted.
+ *
+ * Not covered: `originalText`, the whole `evidence` chain (`commentId`,
+ * `commentCreatedAt`, `body`, `bodyHash`, `bodyFormat`, `quote`, `start`, `end`,
+ * `author`, `fingerprint`, `capturedAt`), `confidence`, `signals`,
+ * `suggestedOwner`, `dueBasis`, `acceptedAt`, `acceptedBy`, `verifiedAt`,
+ * `verifiedBy`, `verificationNote`, `droppedAt`, `droppedReason` and
+ * `previousOwners`.
+ *
+ * That is deliberate, and the limit is worth stating plainly: this is a
+ * **same-revision consistency check**, not tamper evidence. FNV-1a is 32 bits,
+ * unseeded and not collision resistant, so it cannot be a security boundary in
+ * any case; the guard against a rival write is the revision on the conditional
+ * write, and the digest answers a narrower question — *did the record read back
+ * hold the commitments I just wrote?* — for the fields the answer depends on.
+ * The quotation is anchored where it belongs instead: `evidence.fingerprint`
+ * covers issue, comment, offsets and the quote, `evidence.bodyHash` covers the
+ * comment body, and both are re-derived from Jira when the comment is rescanned.
+ *
+ * The algorithm is frozen for a compatibility reason, not an aesthetic one:
+ * `fromStored` verifies the stored digest against the stored commitments, so
+ * changing which fields this hashes would make every record already in the
+ * entity store fail its own check and be refused. A wider digest would have to
+ * arrive as a versioned algorithm (`v2:` prefix, both verifiable on read),
+ * which is a change to make when the guarantee is restated as record-wide
+ * integrity — not before.
  */
 export function digestOf(commitments) {
   const list = Array.isArray(commitments) ? commitments : [];
@@ -128,6 +161,25 @@ export function applyMutation(ledger, expectedRev, mutate, now = new Date().toIS
   }
   const next = mutate({ ...ledger, commitments: ledger.commitments.map((c) => ({ ...c })) });
   return { ...next, rev: ledger.rev + 1, updatedAt: now };
+}
+
+/**
+ * The four states a commitment can be in, and all there have ever been:
+ * `toRecord()` creates `proposed`, `relay.capture.accept` moves it to `open`,
+ * `relay.commitment.verify` to `verified`, and `relay.capture.reject` to
+ * `dropped`.
+ *
+ * The list is exported so the record codec can enforce it *on read*. That
+ * enforcement is not cosmetic: `isUnresolved` below answers false for anything
+ * that is not `open` or `proposed`, so a commitment whose status was lost or
+ * corrupted would be silently classified as settled and vanish from the open
+ * count — which is the number the closure contract reads. A status that is not
+ * one of these four is refused, not interpreted.
+ */
+export const COMMITMENT_STATUSES = Object.freeze(['proposed', 'open', 'verified', 'dropped']);
+
+export function isCommitmentStatus(status) {
+  return typeof status === 'string' && COMMITMENT_STATUSES.includes(status);
 }
 
 /** The single definition of "unresolved". Everything derives from this. */

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, keyOf, RecordStoreMissing } from '../src/store.js';
+import { digestOf } from '../src/ledger.js';
 import { createMemoryRecords, createMemoryStorage, interleaver } from './support/fake-forge.js';
 
 const NOW = new Date('2026-11-04T09:00:00.000Z');
@@ -37,7 +38,7 @@ test('a mutation commits conditionally, bumps the revision, and is read back', a
 
 test('a mutator returning null is a no-op and writes nothing', async () => {
   const { store, records } = build();
-  await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1' }]);
+  await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1', status: 'open' }]);
   const before = await store.readLedger('FS-101');
 
   const res = await store.mutateLedger('FS-101', () => null);
@@ -90,7 +91,7 @@ test('a stale update is never accepted: the second writer re-derives from fresh 
   const storage = createMemoryStorage();
   const store = createStore({ storage, records, now: clock, wait: async () => {} });
 
-  await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1' }]);
+  await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1', status: 'open' }]);
   // Force one conflict: the record is bumped behind the store's back.
   const original = records.hooks.beforeCommit;
   let forced = false;
@@ -99,11 +100,15 @@ test('a stale update is never accepted: the second writer re-derives from fresh 
     if (!forced && info.op === 'update') {
       forced = true;
       const current = records.map.get('FS-101');
-      records.map.set('FS-101', { ...current, rev: current.rev + 1, commitments: [...current.commitments, { code: 'RIVAL' }] });
+      // A rival Relay writes a *well-formed* record: its own revision, a real
+      // commitment, and a digest that describes what it wrote. Anything less
+      // would be corruption, which the read path now refuses outright.
+      const commitments = [...current.commitments, { code: 'RIVAL', status: 'open' }];
+      records.map.set('FS-101', { ...current, rev: current.rev + 1, commitments, digest: digestOf(commitments) });
     }
   };
 
-  const res = await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-2' }]);
+  const res = await store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-2', status: 'open' }]);
 
   assert.equal(res.changed, true);
   assert.ok(res.conflicts >= 1);
@@ -123,7 +128,7 @@ test('a storage failure raises instead of pretending to save', async () => {
   assert.equal(seed.created, true);
 
   await assert.rejects(
-    () => store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1' }], { attempts: 2 }),
+    () => store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1', status: 'open' }], { attempts: 2 }),
     /storage_failure/,
   );
   assert.equal((await store.readLedger('FS-101')).commitments.length, 0);

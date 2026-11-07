@@ -21,7 +21,8 @@ import assert from 'node:assert/strict';
 
 import { createHandlers } from '../src/handlers.js';
 import { createStore } from '../src/store.js';
-import { digestOf, emptyLedger } from '../src/ledger.js';
+import { COMMITMENT_STATUSES, counts, digestOf, emptyLedger } from '../src/ledger.js';
+import { decideClosure } from '../src/gate.js';
 import { RECORD_ATTRIBUTES, RecordShapeError, fromStored, toStored } from '../src/record-codec.js';
 import {
   assertEntityValue, createFakeJira, createMemoryRecords, createMemoryStorage, forgeContext, rawComment, rawIssue,
@@ -351,10 +352,12 @@ test('8. toStored → fromStored round-trips a record without losing application
 });
 
 test('8b. an empty string is stored as absent and reads back as null', () => {
+  const commitments = [{ code: 'CM-1', status: 'proposed', verificationNote: '', signals: [] }];
   const record = {
     ...emptyLedger('FS-101', NOW.toISOString(), 'managed'),
     untrackedBy: '',
-    commitments: [{ code: 'CM-1', status: 'proposed', verificationNote: '', signals: [] }],
+    commitments,
+    digest: digestOf(commitments),
   };
   const back = fromStored(toStored(record));
   assert.equal(back.untrackedBy, null);
@@ -451,9 +454,11 @@ test('11b. an own __proto__ key is refused and never reaches the prototype chain
 });
 
 test('11c. a nested __proto__ inside a commitment stays data, and pollutes nothing', () => {
+  const commitments = [JSON.parse('{"code":"CM-1","status":"open","__proto__":{"polluted":true}}')];
   const record = {
     ...emptyLedger('FS-101', NOW.toISOString(), 'managed'),
-    commitments: [JSON.parse('{"code":"CM-1","status":"open","__proto__":{"polluted":true}}')],
+    commitments,
+    digest: digestOf(commitments),
   };
 
   const stored = toStored(record);
@@ -577,4 +582,213 @@ test('14. legacy repair covers the digest and nothing else', () => {
       `digest ${JSON.stringify(digest)} must be refused, not repaired`,
     );
   }
+});
+
+/* --------------------------- 15. the four legitimate commitment statuses */
+
+/**
+ * A stored record, with a digest that genuinely describes its commitments, so a
+ * test can vary one thing without tripping the other checks.
+ */
+const storedWith = (commitments, overrides = {}) => ({
+  issueKey: 'FS-101',
+  rev: 1,
+  version: 2,
+  state: 'managed',
+  updatedAt: NOW.toISOString(),
+  commitments,
+  digest: digestOf(commitments),
+  ...overrides,
+});
+
+test('15. all four commitment statuses read back unchanged, and keep their classification', () => {
+  const commitments = ['proposed', 'open', 'verified', 'dropped'].map((status, index) => ({
+    code: `CM-${index + 1}`,
+    status,
+    text: `the ${status} commitment`,
+  }));
+
+  const read = fromStored(toStored(storedWith(commitments)));
+  assert.deepEqual(read.commitments.map((c) => c.status), [...COMMITMENT_STATUSES], 'no status is rewritten, normalised or dropped');
+  assert.deepEqual([...COMMITMENT_STATUSES], ['proposed', 'open', 'verified', 'dropped'], 'the set is the four Relay writes');
+
+  // The classification downstream is unchanged: proposed and open are the open
+  // count, verified and dropped are settled.
+  const c = counts(read);
+  assert.equal(c.open, 2);
+  assert.equal(c.awaitingReview, 1);
+  assert.equal(c.overdue, 0);
+});
+
+test('16. a commitment whose status is missing, empty or unknown is refused at its path', () => {
+  const unknown = [null, '', '   ', 'settled', 'OPEN', 'Open', 'closed', 0, 3, true, {}, ['open']];
+  for (const status of unknown) {
+    assert.throws(
+      () => fromStored(storedWith([{ code: 'CM-1', status }])),
+      (err) => err instanceof RecordShapeError && err.attribute === 'commitments[0].status',
+      `status ${JSON.stringify(status)} must be refused`,
+    );
+  }
+
+  // Missing entirely, which is what a truncated write or a hand edit leaves behind.
+  assert.throws(
+    () => fromStored(storedWith([{ code: 'CM-1', text: 'no status at all' }])),
+    (err) => err instanceof RecordShapeError
+      && err.attribute === 'commitments[0].status'
+      && /missing or empty/.test(err.message),
+  );
+
+  // The path names the commitment, not just the field.
+  assert.throws(
+    () => fromStored(storedWith([{ code: 'CM-1', status: 'open' }, { code: 'CM-2' }])),
+    (err) => err instanceof RecordShapeError && err.attribute === 'commitments[1].status',
+  );
+});
+
+/* ------------------------------------- 17. the digest is verified, not carried */
+
+test('17. a stored digest is checked against the commitments, and never repaired', () => {
+  const commitments = [{
+    code: 'CM-1',
+    status: 'open',
+    text: 'Send the drawing',
+    owner: { id: 'acc-1', name: 'Maya', initials: 'MB' },
+    dueAt: '2026-11-10T00:00:00.000Z',
+  }];
+  const digest = digestOf(commitments);
+  const record = storedWith(commitments);
+
+  // A matching digest is accepted, and is stable across a write and a read.
+  const back = fromStored(toStored(record));
+  assert.equal(back.digest, digest);
+  assert.equal(digestOf(back.commitments), digest, 'the normalised record digests to the same value the writer computed');
+
+  // Every field the digest covers is protected: change one, keep the digest, and
+  // the record no longer describes itself.
+  const covered = [
+    ['text', (c) => { c.text = 'Send the drawing tomorrow'; }],
+    ['code', (c) => { c.code = 'CM-9'; }],
+    ['status', (c) => { c.status = 'verified'; }],
+    ['owner identity', (c) => { c.owner = { id: 'acc-2', name: 'Tom', initials: 'TL' }; }],
+    ['dueAt', (c) => { c.dueAt = '2026-12-01T00:00:00.000Z'; }],
+  ];
+  for (const [field, mutate] of covered) {
+    const copy = structuredClone(record);
+    mutate(copy.commitments[0]);
+    assert.throws(
+      () => fromStored(copy),
+      (err) => err instanceof RecordShapeError && err.attribute === 'digest',
+      `a changed ${field} must not pass the digest`,
+    );
+  }
+
+  // Adding or removing a commitment moves the count in the digest too.
+  assert.throws(() => fromStored({ ...record, commitments: [] }), (err) => err.attribute === 'digest');
+  assert.throws(
+    () => fromStored({ ...record, commitments: [...commitments, { code: 'CM-2', status: 'open' }] }),
+    (err) => err.attribute === 'digest',
+  );
+
+  // A digest that belongs to something else, and a digest that is not a usable string.
+  for (const value of [digestOf([]), null, '', '   ', 7, {}]) {
+    assert.throws(
+      () => fromStored({ ...record, digest: value }),
+      (err) => err instanceof RecordShapeError && err.attribute === 'digest',
+      `digest ${JSON.stringify(value)} must be refused, not repaired`,
+    );
+  }
+
+  // An absent digest is the only repair, and it is derived from what is there.
+  const derived = fromStored({ ...record, digest: undefined });
+  assert.equal(derived.digest, digest, 'the legacy record gets exactly the digest its content implies');
+
+  // The boundary, asserted rather than left to prose: the digest covers the
+  // fields Relay decides from, not the evidence chain (see `digestOf` in
+  // ledger.js). This is the documented limit of the guarantee.
+  const outside = structuredClone(record);
+  outside.commitments[0].verificationNote = 'edited outside Relay';
+  outside.commitments[0].evidence = { quote: 'a different sentence', start: 0, end: 5 };
+  assert.equal(fromStored(outside).digest, digest, 'evidence and notes are outside the digest by design');
+});
+
+/* -------------------------------- 18. a malformed commitment cannot fail open */
+
+test('18. a commitment with a lost status never reads back as a zero-open ledger', async () => {
+  const commitments = [{ code: 'CM-1', text: 'Ship the bracket', evidence: { commentId: 'c-1' } }];
+  const record = storedWith(commitments); // matching digest: the status is the only thing wrong
+  const { records, store } = site();
+  records.map.set('FS-101', record);
+
+  await assert.rejects(
+    () => records.read('FS-101'),
+    (err) => err instanceof RecordShapeError && err.attribute === 'commitments[0].status',
+  );
+  await assert.rejects(
+    () => store.readLedger('FS-101'),
+    (err) => err instanceof RecordShapeError && err.attribute === 'commitments[0].status',
+  );
+
+  // What an unchecked read would have handed to the closure gate: zero open, and
+  // a gate that says the case may close. `isUnresolved` answers false for any
+  // status it does not recognise, so this is the fail-open the check prevents.
+  assert.equal(counts({ commitments }).open, 0, 'an unrecognised status counts as settled');
+  const gate = decideClosure({
+    ledger: record,
+    projection: { ledgerRev: record.rev, updatedAt: record.updatedAt, open: 0 },
+    nowMs: NOW.getTime(),
+  });
+  assert.equal(gate.allow, true, 'the unchecked ledger would have permitted closure');
+});
+
+/* -------------------------------- 19. the same rules apply before the write */
+
+test('19. an unreadable commitment is refused before it is stored, not after', () => {
+  // A record that is written but cannot be read back is worse than a local
+  // error: it fails closed on every later read, and only a manual
+  // untrack/backfill repairs it.
+  const base = () => emptyLedger('FS-101', NOW.toISOString(), 'managed');
+
+  for (const status of [undefined, '', 'settled', 'OPEN']) {
+    const commitment = status === undefined ? { code: 'CM-1' } : { code: 'CM-1', status };
+    const record = { ...base(), commitments: [commitment], digest: digestOf([commitment]) };
+    assert.throws(
+      () => toStored(record),
+      (err) => err instanceof RecordShapeError && err.attribute === 'commitments[0].status',
+      `status ${JSON.stringify(status)} must not reach the store`,
+    );
+  }
+
+  const commitments = [{ code: 'CM-1', status: 'open' }];
+  assert.throws(
+    () => toStored({ ...base(), commitments, digest: digestOf([]) }),
+    (err) => err instanceof RecordShapeError && err.attribute === 'digest',
+    'a digest that does not describe what is being written is refused too',
+  );
+});
+
+test('19b. a mutator that produces an unreadable commitment changes nothing', async () => {
+  const { store, records } = site();
+
+  await assert.rejects(
+    () => store.mutateLedger('FS-101', (l) => [...l.commitments, { code: 'CM-1', status: 'settled' }]),
+    (err) => err instanceof RecordShapeError && err.attribute === 'commitments[0].status',
+  );
+
+  assert.equal(records.raw('FS-101'), null, 'nothing was stored');
+  assert.equal(await store.readLedger('FS-101'), null, 'and the issue has no half-written record');
+});
+
+test('19c. the four statuses all write cleanly through the store', async () => {
+  const { store, records } = site();
+  const statuses = ['proposed', 'open', 'verified', 'dropped'];
+
+  await store.mutateLedger('FS-101', (l) => [
+    ...l.commitments,
+    ...statuses.map((status, index) => ({ code: `CM-${index + 1}`, status, text: status })),
+  ]);
+
+  const read = await store.readLedger('FS-101');
+  assert.deepEqual(read.commitments.map((c) => c.status), statuses);
+  assert.equal(read.digest, digestOf(read.commitments));
+  assertNoNulls(records.raw('FS-101'), 'and every stored value is still storable');
 });
