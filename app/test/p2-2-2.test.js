@@ -66,7 +66,12 @@ function assertNoNulls(value, path = '<root>') {
   for (const [key, nested] of Object.entries(value)) assertNoNulls(nested, `${path}.${key}`);
 }
 
-const declared = (raw) => Object.keys(raw).every((attribute) => attribute in RECORD_ATTRIBUTES);
+/**
+ * `Object.hasOwn`, not `in`: `in` walks the prototype chain, so `toString`,
+ * `constructor` or `hasOwnProperty` would read as declared attributes here and
+ * let a regression pass.
+ */
+const declared = (raw) => Object.keys(raw).every((attribute) => Object.hasOwn(RECORD_ATTRIBUTES, attribute));
 
 /* ------------------------------------- 1. the record Track creates, exactly */
 
@@ -411,4 +416,165 @@ test('10. a record written without a digest reads back with one derived from its
   assert.equal(read.digest, digestOf(read.commitments));
   assert.equal(read.commitments[0].owner, null, 'the nulls the old writer never stored are restored');
   assertNoNulls(records.raw('FS-101'), 'and the stored value is untouched');
+});
+
+/* ---------------------------------- 11. inherited and special property names */
+
+test('11. inherited property names cannot pass as declared attributes', () => {
+  const base = emptyLedger('FS-101', NOW.toISOString(), 'managed');
+
+  for (const name of ['toString', 'constructor', 'hasOwnProperty', 'valueOf', 'isPrototypeOf']) {
+    assert.equal(Object.hasOwn(RECORD_ATTRIBUTES, name), false, `${name} must not be a declared attribute`);
+    assert.equal(declared({ ...base, [name]: 'x' }), false, `the declared() helper must not accept ${name}`);
+
+    const record = { ...base, [name]: 'x' };
+    assert.throws(
+      () => toStored(record),
+      (err) => err instanceof RecordShapeError && err.attribute === name,
+      `${name} must be refused as an undeclared attribute`,
+    );
+  }
+});
+
+test('11b. an own __proto__ key is refused and never reaches the prototype chain', () => {
+  const base = emptyLedger('FS-101', NOW.toISOString(), 'managed');
+  // `{ __proto__: ... }` in a literal sets the prototype; Object.fromEntries (or
+  // JSON.parse) creates a real own property, which is the interesting case.
+  const record = Object.fromEntries([...Object.entries(base), ['__proto__', { polluted: true }]]);
+  assert.equal(Object.hasOwn(record, '__proto__'), true, 'the fixture really carries an own __proto__');
+
+  assert.throws(
+    () => toStored(record),
+    (err) => err instanceof RecordShapeError && err.attribute === '__proto__',
+  );
+  assert.equal({}.polluted, undefined, 'Object.prototype was not touched');
+});
+
+test('11c. a nested __proto__ inside a commitment stays data, and pollutes nothing', () => {
+  const record = {
+    ...emptyLedger('FS-101', NOW.toISOString(), 'managed'),
+    commitments: [JSON.parse('{"code":"CM-1","status":"open","__proto__":{"polluted":true}}')],
+  };
+
+  const stored = toStored(record);
+  assert.equal(Object.hasOwn(stored.commitments[0], '__proto__'), true, 'kept as an own property, as `any` allows');
+  assert.equal(Object.getPrototypeOf(stored.commitments[0]), Object.prototype, 'the prototype is untouched');
+  assert.equal({}.polluted, undefined);
+
+  const back = fromStored(stored);
+  assert.equal({}.polluted, undefined, 'reading it back pollutes nothing either');
+  assert.equal(back.commitments[0].code, 'CM-1');
+});
+
+test('11d. the fake entity store applies the same own-property rule', () => {
+  const stored = toStored(emptyLedger('FS-101', NOW.toISOString(), 'managed'));
+  for (const name of ['toString', 'constructor']) {
+    assert.throws(
+      () => assertEntityValue(RECORD_ATTRIBUTES, { ...stored, [name]: 'x' }),
+      (err) => err.status === 422 && new RegExp(`attribute "${name}" is not declared`).test(err.message),
+      `${name} must be rejected by the fake's entity rules too`,
+    );
+  }
+});
+
+/* ------------------------------------- 12. forward compatibility, both ways */
+
+test('12. an attribute this build does not know survives a read, and a write refuses it', async () => {
+  const { records, store } = site();
+  // Exactly what a newer build would leave behind.
+  records.map.set('FS-101', { ...toStored(emptyLedger('FS-101', NOW.toISOString(), 'managed')), capturedBy: 'acc-maya' });
+
+  const read = await records.read('FS-101');
+  assert.equal(read.capturedBy, 'acc-maya', 'the read keeps an attribute it does not know');
+  assert.equal(read.state, 'managed');
+  assert.equal(read.rev, 0);
+
+  await assert.rejects(
+    () => store.setState('FS-101', 'unmanaged'),
+    (err) => err instanceof RecordShapeError && err.attribute === 'capturedBy',
+    'writing it back is refused rather than silently dropping the attribute',
+  );
+  assert.equal(records.raw('FS-101').state, 'managed', 'the refused write changed nothing');
+  assert.equal(records.raw('FS-101').capturedBy, 'acc-maya', 'and the unknown attribute is still there');
+});
+
+/* ------------------------------- 13. incomplete or corrupt records are refused */
+
+test('13. a record missing or mis-typing a core field is refused, not filled in', () => {
+  const valid = () => toStored(emptyLedger('FS-101', NOW.toISOString(), 'managed'));
+  const cases = [
+    ['rev', (r) => { delete r.rev; }],
+    ['rev', (r) => { r.rev = '3'; }],
+    ['rev', (r) => { r.rev = -1; }],
+    ['state', (r) => { delete r.state; }],
+    ['state', (r) => { r.state = 'tracked'; }],
+    ['commitments', (r) => { delete r.commitments; }],
+    ['commitments', (r) => { r.commitments = null; }],
+    ['commitments', (r) => { r.commitments = {}; }],
+    ['issueKey', (r) => { delete r.issueKey; }],
+    ['issueKey', (r) => { r.issueKey = '   '; }],
+    ['version', (r) => { delete r.version; }],
+    ['updatedAt', (r) => { delete r.updatedAt; }],
+    ['digest', (r) => { r.digest = null; }],
+  ];
+
+  for (const [attribute, mutate] of cases) {
+    const stored = valid();
+    mutate(stored);
+    assert.throws(
+      () => fromStored(stored),
+      (err) => err instanceof RecordShapeError && err.attribute === attribute,
+      `a record with a bad ${attribute} must be refused`,
+    );
+  }
+});
+
+test('13b. an empty or non-object stored value is refused, not read as an empty ledger', () => {
+  for (const value of [null, undefined, 'FS-101', [], 42]) {
+    assert.throws(() => fromStored(value), (err) => err instanceof RecordShapeError && err.attribute === '<record>');
+  }
+});
+
+test('13c. a corrupt record surfaces at read, and no caller ever sees a fabricated ledger', async () => {
+  const { records, store } = site();
+  // No commitments attribute: the shape the pre-P2.2.2 create wrote *minus* the
+  // field that makes "nothing open" true. Reading it must not become rev 0/[].
+  records.map.set('FS-101', {
+    issueKey: 'FS-101', rev: 4, version: 2, state: 'managed', updatedAt: NOW.toISOString(),
+  });
+
+  await assert.rejects(() => records.read('FS-101'), (err) => err instanceof RecordShapeError && err.attribute === 'commitments');
+  await assert.rejects(() => store.readLedger('FS-101'), (err) => err.attribute === 'commitments');
+});
+
+/* ------------------------------------------- 14. the legacy repair, bounded */
+
+test('14. legacy repair covers the digest and nothing else', () => {
+  const legacy = {
+    issueKey: 'FS-101',
+    rev: 3,
+    version: 2,
+    state: 'managed',
+    updatedAt: NOW.toISOString(),
+    commitments: [{ code: 'CM-1', status: 'open', evidence: { commentId: 'c-1', author: { name: 'Tom', initials: 'T' } } }],
+  };
+
+  const read = fromStored(legacy);
+  assert.equal(read.digest, digestOf(read.commitments), 'the one field the old writer omitted is derived');
+  assert.equal(read.rev, 3, 'and every field it did write is kept exactly as stored');
+  assert.equal(read.issueKey, 'FS-101');
+  assert.equal(read.state, 'managed');
+  assert.equal(read.version, 2);
+  assert.equal(read.updatedAt, legacy.updatedAt);
+  assert.equal(read.trackedBy, null, 'metadata the old writer never wrote reads as null');
+  assert.equal(read.commitments[0].owner, null);
+
+  // The repair is for an *absent* digest. A present but unusable one is corrupt.
+  for (const digest of [null, '', 7]) {
+    assert.throws(
+      () => fromStored({ ...legacy, digest }),
+      (err) => err instanceof RecordShapeError && err.attribute === 'digest',
+      `digest ${JSON.stringify(digest)} must be refused, not repaired`,
+    );
+  }
 });

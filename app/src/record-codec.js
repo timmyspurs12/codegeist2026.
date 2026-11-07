@@ -31,8 +31,27 @@
  *
  * `fromStored` puts the `null`s back, from an explicit list of the keys that are
  * nullable, so the in-memory record a caller reads is the same shape it would
- * have written. Anything this file does not know about is preserved verbatim,
- * so a newer writer's fields survive an older reader.
+ * have written.
+ *
+ * ## Reading is forward compatible; writing is not
+ *
+ * `fromStored` keeps an attribute this build does not know about, verbatim, so a
+ * record written by a newer build is never silently emptied by an older one.
+ * `toStored` still refuses to write it: the store would reject an undeclared
+ * attribute anyway, and inventing a declaration is not this module's business.
+ * The consequence is deliberate and loud — a record carrying an unknown
+ * attribute can be *read* by this build but not *rewritten* by it; the write
+ * fails with `RecordShapeError` naming the attribute, rather than dropping it.
+ *
+ * ## Incomplete records are refused, not filled in
+ *
+ * `fromStored` will not fabricate core ledger state. A record missing `rev`,
+ * `state`, `commitments`, `issueKey`, `version` or `updatedAt` throws: a made-up
+ * `rev` would break the conditional write (it would compare against a revision
+ * nobody wrote), and a made-up empty `commitments` list would read as "nothing
+ * open" and permit closure. The one repair that is legitimate is the digest: a
+ * record created before P2.2.2 has no `digest` (the bug that made it
+ * unverifiable), and one can be derived from the content it does have.
  *
  * The one place where a value is *not* preserved is an empty string: it becomes
  * "absent", and reads back as `null`. An empty string and a null are already the
@@ -53,7 +72,7 @@
  * compare the declaration in `manifest.yml` with the shape the code really
  * writes, and the test fake uses it to behave like the real store.
  */
-import { LEDGER_VERSION, digestOf } from './ledger.js';
+import { digestOf, isManagedState } from './ledger.js';
 
 /**
  * Every attribute of `relay-ledger`, with the type the manifest must declare.
@@ -119,10 +138,12 @@ export function toStored(record) {
     throw new RecordShapeError('<record>', 'is not an object');
   }
 
-  const out = {};
+  const entries = [];
   for (const [attribute, value] of Object.entries(record)) {
-    const type = RECORD_ATTRIBUTES[attribute];
-    if (!type) {
+    // `Object.hasOwn`, not `RECORD_ATTRIBUTES[attribute]`: the latter walks the
+    // prototype chain, so `toString`, `constructor` or `hasOwnProperty` would
+    // read as a declared attribute and be written to the entity.
+    if (!Object.hasOwn(RECORD_ATTRIBUTES, attribute)) {
       throw new RecordShapeError(
         attribute,
         'is not an attribute of relay-ledger. Add it to manifest.yml and to RECORD_ATTRIBUTES together, ' +
@@ -131,12 +152,17 @@ export function toStored(record) {
     }
     const cleaned = sanitise(value, attribute);
     if (cleaned === OMIT) continue; // not recorded — the store has no null to hold
-    assertType(attribute, type, cleaned);
-    out[attribute] = cleaned;
+    assertType(attribute, RECORD_ATTRIBUTES[attribute], cleaned);
+    entries.push([attribute, cleaned]);
   }
 
+  // Built with `Object.fromEntries`, which defines own data properties. Plain
+  // `out[key] = value` treats a `__proto__` key as the prototype slot instead of
+  // a property, so a hostile or accidental key could reach the prototype chain.
+  const out = Object.fromEntries(entries);
+
   for (const attribute of REQUIRED_ATTRIBUTES) {
-    if (!(attribute in out)) {
+    if (!Object.hasOwn(out, attribute)) {
       throw new RecordShapeError(attribute, 'is required on every record and was absent or empty');
     }
   }
@@ -144,29 +170,37 @@ export function toStored(record) {
 }
 
 /**
- * The record as Relay works with it: nulls restored, digest repaired if an
- * older writer left it out, unknown fields preserved.
+ * The record as Relay works with it: nulls restored, digest repaired if an older
+ * writer left it out, unknown attributes preserved, and everything Relay makes a
+ * decision from required to be present and sane.
+ *
+ * `rev`, `state`, `commitments`, `issueKey`, `version` and `updatedAt` are
+ * required. They were written by every version of `initialise`/`mutateLedger`
+ * that ever reached this entity, so a record missing one was not written by
+ * Relay: it is incomplete or corrupt, and substituting a default would invent
+ * state. In particular an absent `commitments` would otherwise read as an empty
+ * ledger — zero open commitments — and permit closure. That is the fail-open
+ * this module refuses to manufacture.
+ *
+ * `digest` is the one legacy allowance: the pre-P2.2.2 create path did not write
+ * one. Deriving it from the content makes the record verifiable without
+ * pretending the stored value was ever there.
  */
 export function fromStored(stored) {
   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
-    throw new RecordShapeError('<record>', 'read back empty');
+    throw new RecordShapeError('<record>', 'read back empty or not an object');
   }
 
-  const commitments = Array.isArray(stored.commitments)
-    ? stored.commitments.map((commitment, index) => normaliseCommitment(commitment, `commitments[${index}]`))
-    : [];
-
-  return {
-    version: Number.isInteger(stored.version) ? stored.version : LEDGER_VERSION,
-    rev: Number.isInteger(stored.rev) ? stored.rev : 0,
-    issueKey: stored.issueKey ?? null,
-    state: stored.state ?? null,
+  const commitments = requireCommitments(stored);
+  const known = {
+    version: requireInteger(stored, 'version', 1),
+    rev: requireInteger(stored, 'rev', 0),
+    issueKey: requireString(stored, 'issueKey'),
+    state: requireState(stored),
     commitments,
-    // A record written before P2.2.2 has no digest. Deriving it from the content
-    // is the honest repair: it makes the record verifiable rather than trusting
-    // that whatever is stored is what was intended.
-    digest: typeof stored.digest === 'string' && stored.digest ? stored.digest : digestOf(commitments),
-    updatedAt: stored.updatedAt ?? null,
+    // Absent is legacy; present-but-not-a-string is corrupt.
+    digest: stored.digest === undefined ? digestOf(commitments) : requireString(stored, 'digest'),
+    updatedAt: requireString(stored, 'updatedAt'),
     source: stored.source ?? null,
     trackedBy: stored.trackedBy ?? null,
     managedAt: stored.managedAt ?? null,
@@ -174,6 +208,60 @@ export function fromStored(stored) {
     untrackedBy: stored.untrackedBy ?? null,
     backfilledAt: stored.backfilledAt ?? null,
   };
+
+  // Attributes this build does not know about survive a read (a newer build may
+  // have written them). They are *not* carried into a write: `toStored` rejects
+  // them, loudly, because the entity does not declare them.
+  const unknown = Object.entries(stored).filter(([attribute]) => !Object.hasOwn(known, attribute));
+  return Object.fromEntries([...Object.entries(known), ...unknown]);
+}
+
+/* ------------------------------------------------------- read-time checks */
+
+function requireString(stored, attribute) {
+  const value = stored[attribute];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new RecordShapeError(
+      attribute,
+      'is missing or empty. The record is incomplete or corrupt; Relay will not invent a value for it.',
+    );
+  }
+  return value;
+}
+
+function requireInteger(stored, attribute, min) {
+  const value = stored[attribute];
+  if (!Number.isInteger(value) || value < min) {
+    throw new RecordShapeError(
+      attribute,
+      `is ${JSON.stringify(value)}, not an integer >= ${min}. The record is incomplete or corrupt: a substituted ` +
+        'revision would make the conditional write compare against a revision nobody wrote.',
+    );
+  }
+  return value;
+}
+
+function requireState(stored) {
+  const value = stored.state;
+  if (!isManagedState(value)) {
+    throw new RecordShapeError(
+      'state',
+      `is ${JSON.stringify(value)}, which is not a management state (managed, initializing, unmanaged). ` +
+        'Relay will not guess which one it meant: guessing wrong changes whether a case can be closed.',
+    );
+  }
+  return value;
+}
+
+function requireCommitments(stored) {
+  if (!Array.isArray(stored.commitments)) {
+    throw new RecordShapeError(
+      'commitments',
+      `is ${JSON.stringify(stored.commitments)}, not a list. An absent list would read as "no open commitments" ` +
+        'and permit closure, so a record without one is refused rather than assumed empty.',
+    );
+  }
+  return stored.commitments.map((commitment, index) => normaliseCommitment(commitment, `commitments[${index}]`));
 }
 
 /* ------------------------------------------------------------- internals */
@@ -204,12 +292,15 @@ function sanitise(value, path) {
     });
   }
   if (typeof value === 'object') {
-    const out = {};
+    // `Object.fromEntries`, for the same reason as `toStored`: a nested object
+    // may arrive from parsed data, and `out['__proto__'] = ...` is a prototype
+    // write, not a property.
+    const entries = [];
     for (const [key, nested] of Object.entries(value)) {
       const cleaned = sanitise(nested, `${path}.${key}`);
-      if (cleaned !== OMIT) out[key] = cleaned;
+      if (cleaned !== OMIT) entries.push([key, cleaned]);
     }
-    return out;
+    return Object.fromEntries(entries);
   }
   throw new RecordShapeError(path, `is a ${typeof value}, which the entity store cannot hold`);
 }

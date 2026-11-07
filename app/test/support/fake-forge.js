@@ -164,8 +164,10 @@ export function assertEntityValue(attributes, record, issueKey = '<key>') {
   if (!record || typeof record !== 'object' || Array.isArray(record)) reject('the value is not an object');
 
   for (const [name, value] of Object.entries(record)) {
+    // `Object.hasOwn`, not `attributes[name]`: `toString` and friends live on the
+    // prototype and would otherwise read as a declared type.
+    if (!Object.hasOwn(attributes, name)) reject(`attribute "${name}" is not declared (the store rejects undeclared attributes)`);
     const type = attributes[name];
-    if (!type) reject(`attribute "${name}" is not declared (the store rejects undeclared attributes)`);
     if (type === 'string' && typeof value !== 'string') reject(`attribute "${name}" must be a string`);
     if (type === 'integer' && !Number.isInteger(value)) reject(`attribute "${name}" must be an integer`);
     if (type === 'integer' && (value < -2147483648 || value > 2147483647)) reject(`attribute "${name}" does not fit in 32 bits`);

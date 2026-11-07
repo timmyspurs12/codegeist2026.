@@ -550,7 +550,7 @@ about an issue (`test/p2-2.test.js`, check 12).
 ### 11.5 Verification
 
 ```
-npm test                 161/161   (140 in P2.2, 142 in P2.2.1, 161 in P2.2.2)
+npm test                 170/170   (140 P2.2, 142 P2.2.1, 161 P2.2.2, 170 P2.2.2 review)
 npx tsc --noEmit         clean
 npm run check:render     all screens rendered
 npm run build            ok
@@ -584,12 +584,24 @@ restores the nulls from an explicit list of nullable keys, so the record a calle
 reads has the shape it wrote. An undeclared attribute, a non-finite number or a
 null array element is a `RecordShapeError` **before** the network call: a failed
 storage write is reported, never retried as a conflict and never reported as
-success. `emptyLedger()` now carries `digestOf([])`, and `initialise()` verifies
+success. Declaration is tested with `Object.hasOwn` (an inherited name such as
+`toString` is not an attribute), and both the top-level record and nested objects
+are assembled with `Object.fromEntries`, so a `__proto__` key is data rather than
+a prototype write.
+
+Reading is asymmetric on purpose. An attribute this build does not know survives
+a read (forward compatibility) but is refused on a write, so nothing is dropped
+silently. Core state is required rather than defaulted: `issueKey`, `rev`,
+`version`, `state`, `commitments` and `updatedAt` must be present and sane, and a
+record missing one throws — a fabricated `rev` breaks the conditional write, and
+a fabricated empty `commitments` would read as *nothing open* and permit closure.
+The only legacy repair is the digest, for records created before P2.2.2; a
+present-but-unusable digest is treated as corruption, not repaired. `emptyLedger()` now carries `digestOf([])`, and `initialise()` verifies
 the revision, the state and the digest of what it reads back.
 
 The fake record store now stores the encoded record and enforces the service's
-value rules, so the whole suite runs under them: a null that reaches it fails the
-test with the service's complaint. That is what `test/p2-2-2.test.js` (18 tests)
+value rules (declaration by own property too), so the whole suite runs under them: a null that reaches it fails the
+test with the service's complaint. That is what `test/p2-2-2.test.js` (27 tests)
 covers, including the live lifecycle: initial Track, a Track with no account id,
 console tracking, the managed transition, untracking, trigger and backfill
 creates, commitments with optional fields, and a codec round trip.
